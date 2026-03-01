@@ -1,21 +1,37 @@
-MIT License
+AgentShield License v1.0
+Copyright (c) 2025
 
-Copyright (c) 2026 AdityaBelhekar
+Permission is hereby granted to any person obtaining a copy of 
+this software to USE it freely for personal, educational, or 
+commercial security purposes, subject to the following conditions:
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+1. ATTRIBUTION REQUIRED
+   All use, deployment, or integration of this software must 
+   retain the original copyright notice and credit 
+   "[Your Team Name] — AgentShield" visibly in documentation, 
+   README, or product credits.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+2. NO MODIFICATIONS FOR REDISTRIBUTION
+   You may modify this software for your own internal use. 
+   You may NOT distribute, publish, or release modified versions 
+   of this software publicly under any name.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+3. NO REBRANDING
+   You may NOT remove, replace, or obscure the AgentShield name 
+   or team credits and redistribute the software as your own 
+   project.
+
+4. NO COMMERCIAL RESALE
+   You may NOT sell, sublicense, or commercially redistribute 
+   this software or any derivative of it without explicit written 
+   permission from the copyright holders.
+
+5. OPEN CONTRIBUTION WELCOME
+   Pull requests and contributions to THIS repository are welcome 
+   and will be credited. Contributors agree their contributions 
+   fall under this same license.
+
+THE SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND.
+THE AUTHORS ARE NOT LIABLE FOR ANY DAMAGES ARISING FROM ITS USE.
+
+Contact: [belhekaraditya96@gmail.com]
