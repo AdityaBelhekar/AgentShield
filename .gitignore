@@ -1,0 +1,59 @@
+# ── Python ──────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+*.whl
+.eggs/
+
+# ── Virtual environments ────────────────────────────────
+.venv/
+venv/
+ENV/
+env/
+
+# ── IDE / Editor ────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ── Testing & Quality ──────────────────────────────────
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+
+# ── Environment & Secrets ──────────────────────────────
+.env
+.env.local
+.env.*.local
+
+# ── Node / Frontend ───────────────────────────────────
+node_modules/
+.vite/
+frontend/dist/
+
+# ── Docker ─────────────────────────────────────────────
+docker-compose.override.yml
+
+# ── Logs & Output ──────────────────────────────────────
+logs/
+*.jsonl
+output/
+*.log
+
+# ── AgentShield: LOCAL TEST HARNESS (never committed) ──
+/scratch/

@@ -1,0 +1,25 @@
+version: "3.9"
+
+# Development overrides — use with:
+#   docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    volumes:
+      - ./backend:/app
+      - ./agentshield:/app/agentshield
+      - ./logs:/app/logs
+    environment:
+      - AGENTSHIELD_LOG_LEVEL=DEBUG
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  frontend:
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - VITE_HMR=true
+    command: npm run dev -- --host 0.0.0.0
