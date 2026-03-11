@@ -1,0 +1,1 @@
+// Forensic trace panel placeholder

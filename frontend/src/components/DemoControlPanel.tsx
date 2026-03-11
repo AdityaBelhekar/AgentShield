@@ -1,0 +1,1 @@
+// Demo control panel placeholder

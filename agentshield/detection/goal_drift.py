@@ -1,0 +1,1 @@
+"""AgentShield goal drift detector."""
