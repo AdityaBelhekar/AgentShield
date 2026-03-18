@@ -1,0 +1,1 @@
+// AgentShield Security Console — header component

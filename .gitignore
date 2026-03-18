@@ -1,0 +1,54 @@
+# AgentShield — gitignore
+
+# Test harness — NEVER committed
+/scratch/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs and audit files
+logs/
+*.jsonl
+*.log
+
+# Runtime outputs
+output/
+reports/
+
+# Node / Frontend
+node_modules/
+.vite/
+frontend/dist/
+frontend/build/
+
+# Docker
+.docker/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/settings.json
+.idea/
+*.swp
+*.swo

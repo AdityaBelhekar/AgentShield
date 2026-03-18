@@ -1,0 +1,1 @@
+"""AgentShield CLI entry point."""
