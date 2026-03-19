@@ -14,6 +14,23 @@ Docs:   https://agentshield.dev/docs
 """
 
 from agentshield.config import AgentShieldConfig
+from agentshield.events import (
+    AuditLog,
+    BaseEvent,
+    CanaryEvent,
+    EventType,
+    LLMEvent,
+    MemoryEvent,
+    ProvenanceEvent,
+    RecommendedAction,
+    SessionEvent,
+    SeverityLevel,
+    ThreatEvent,
+    ThreatType,
+    ToolCallEvent,
+    TrustLevel,
+    deserialize_event,
+)
 from agentshield.exceptions import (
     AgentShieldError,
     AuditChainError,
@@ -43,6 +60,22 @@ __all__ = [
     "__version__",
     # Config
     "AgentShieldConfig",
+    # Events
+    "AuditLog",
+    "BaseEvent",
+    "CanaryEvent",
+    "EventType",
+    "LLMEvent",
+    "MemoryEvent",
+    "ProvenanceEvent",
+    "RecommendedAction",
+    "SessionEvent",
+    "SeverityLevel",
+    "ThreatEvent",
+    "ThreatType",
+    "ToolCallEvent",
+    "TrustLevel",
+    "deserialize_event",
     # Base exceptions
     "AgentShieldError",
     "ConfigurationError",
