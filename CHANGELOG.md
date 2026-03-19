@@ -22,6 +22,18 @@ Versions follow [Semantic Versioning](https://semver.org).
 - `AuditLog`: session aggregation with chain_hash placeholder
 - `deserialize_event()`: type-safe routing utility
 
+### Phase 1B - Event Emitter
+- `EventEmitter.emit()`: sync publish with 3-retry backoff
+- `EventEmitter.emit_async()`: async publish via redis.asyncio
+- `EventEmitter.emit_batch()`: batched pipeline publish
+- `EventEmitter.flush()`: clean shutdown with stats logging
+- `EventEmitter.stats()`: emission statistics for monitoring
+- Lazy Redis initialization - no connection at import time
+- Graceful degradation - never raises to caller under any failure
+- JSONL audit log - append-only, one parseable JSON per line
+- Auto-creates log directory if it does not exist
+- Exponential backoff: 1s -> 2s -> 4s between retry attempts
+
 ## [0.1.0] — In Development
 
 ### Phase 0 — Project Foundation

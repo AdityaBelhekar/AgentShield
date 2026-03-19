@@ -1,14 +1,16 @@
-"""AgentShield event system - models, enums, and utilities.
+"""AgentShield event system - models, emitter, and utilities.
 
 Public API:
-        Models    : BaseEvent, ToolCallEvent, LLMEvent, MemoryEvent,
-                                                        ThreatEvent, SessionEvent, CanaryEvent,
-                                                        ProvenanceEvent, AuditLog
-        Enums     : EventType, SeverityLevel, ThreatType,
-                                                        RecommendedAction, TrustLevel
-        Utilities : deserialize_event, EVENT_TYPE_MAP
+    Emitter   : EventEmitter
+    Models    : BaseEvent, ToolCallEvent, LLMEvent, MemoryEvent,
+                            ThreatEvent, SessionEvent, CanaryEvent,
+                            ProvenanceEvent, AuditLog
+    Enums     : EventType, SeverityLevel, ThreatType,
+                            RecommendedAction, TrustLevel
+    Utilities : deserialize_event, EVENT_TYPE_MAP
 """
 
+from agentshield.events.emitter import EventEmitter
 from agentshield.events.models import (
     EVENT_TYPE_MAP,
     AuditLog,
@@ -29,6 +31,8 @@ from agentshield.events.models import (
 )
 
 __all__ = [
+    # Emitter
+    "EventEmitter",
     # Models
     "AuditLog",
     "BaseEvent",
