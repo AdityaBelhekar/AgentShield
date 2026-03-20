@@ -47,6 +47,21 @@ Versions follow [Semantic Versioning](https://semver.org).
 - `LLMInterceptor.on_chain_error()`: emits HIGH severity CHAIN_END
 - Pending prompt storage by run_id for response correlation
 
+### Phase 2B — Tool Interceptor
+- `ToolInterceptor`: monkey-patches tool _run and _arun
+- `ToolInterceptor.attach()`: patches all tools in list
+- `ToolInterceptor.detach()`: restores all original methods
+- `HookResult`: dataclass for pre-call hook return values
+- `PatchedTool`: dataclass storing original methods per tool
+- Pre-call hook system: blocks tool calls before execution
+- Post-call hook system: analyzes tool output after execution
+- TOOL_CALL_START emitted before every tool execution
+- TOOL_CALL_COMPLETE emitted after with output + timing
+- TOOL_CALL_BLOCKED emitted when pre-call hook blocks
+- ToolCallBlockedError raised on block with full evidence
+- execution_time_ms measured via time.monotonic()
+- Async wrapper for _arun methods
+
 ## [0.1.0] — In Development
 
 ### Phase 0 — Project Foundation
