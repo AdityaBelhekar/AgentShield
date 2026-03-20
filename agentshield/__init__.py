@@ -52,6 +52,7 @@ from agentshield.exceptions import (
     RedisConnectionError,
     ToolCallBlockedError,
 )
+from agentshield.runtime import AgentShieldRuntime, WrappedAgent, shield
 
 __version__ = "0.1.0"
 __author__ = "GroundTruth"
@@ -98,4 +99,8 @@ __all__ = [
     "MemoryPoisonError",
     "BehavioralAnomalyError",
     "InterAgentInjectionError",
+    # Runtime
+    "AgentShieldRuntime",
+    "WrappedAgent",
+    "shield",
 ]

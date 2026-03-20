@@ -62,6 +62,20 @@ Versions follow [Semantic Versioning](https://semver.org).
 - execution_time_ms measured via time.monotonic()
 - Async wrapper for _arun methods
 
+### Phase 2C — Memory Interceptor + Runtime
+- `MemoryInterceptor`: monkey-patches BaseMemory methods
+- `MemoryInterceptor.attach()`: wraps save_context + load_memory_vars
+- `MemoryInterceptor.detach()`: restores originals cleanly
+- MEMORY_WRITE emitted before save_context execution
+- MEMORY_READ emitted after load_memory_vars execution
+- `AgentShieldRuntime`: session orchestrator
+- `AgentShieldRuntime.wrap()`: creates session, attaches all interceptors
+- `AgentShieldRuntime._close_session()`: SESSION_END + cleanup
+- `WrappedAgent`: context manager with run() and invoke()
+- `WrappedAgent.close()`: explicit cleanup without context manager
+- `shield()`: 4-line public API, policy param ready for Phase 5
+- SESSION_START emitted on wrap(), SESSION_END on close()
+
 ## [0.1.0] — In Development
 
 ### Phase 0 — Project Foundation
