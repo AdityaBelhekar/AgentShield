@@ -34,6 +34,19 @@ Versions follow [Semantic Versioning](https://semver.org).
 - Auto-creates log directory if it does not exist
 - Exponential backoff: 1s -> 2s -> 4s between retry attempts
 
+### Phase 2A — Base Interceptor + LLM Interceptor
+- `BaseInterceptor`: abstract base with attach/detach/is_attached
+- `BaseInterceptor._emit()`: safe emit wrapper, never raises
+- `BaseInterceptor._make_base_kwargs()`: shared event constructor
+- `LLMInterceptor`: hooks LangChain callback system
+- `LLMInterceptor.on_llm_start()`: emits LLM_PROMPT event
+- `LLMInterceptor.on_llm_end()`: emits LLM_RESPONSE with tokens
+- `LLMInterceptor.on_llm_error()`: emits HIGH severity event
+- `LLMInterceptor.on_chain_start()`: emits CHAIN_START event
+- `LLMInterceptor.on_chain_end()`: emits CHAIN_END event
+- `LLMInterceptor.on_chain_error()`: emits HIGH severity CHAIN_END
+- Pending prompt storage by run_id for response correlation
+
 ## [0.1.0] — In Development
 
 ### Phase 0 — Project Foundation
