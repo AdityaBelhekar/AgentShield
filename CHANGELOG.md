@@ -101,6 +101,17 @@ Versions follow [Semantic Versioning](https://semver.org).
 - Confidence scoring: weighted combination of all 3 layers
 - Evidence dict includes pattern matches + structural markers
 
+### Phase 3C — Goal Drift Detector
+- `GoalDriftDetector`: cosine distance drift detection
+- Analyzes LLM_PROMPT events only
+- Requires original_task_embedding in DetectionContext
+- Rolling average smoothing over last 3 prompts
+- Early session protection — no BLOCK before 2 prompts
+- Thresholds: flag=0.35, block=0.55 (from AgentShieldConfig)
+- Per-session drift history keyed by session_id
+- `clear_session()`: frees memory when session closes
+- Evidence includes full distance history for forensics
+
 ## [0.1.0] — In Development
 
 ### Phase 0 — Project Foundation

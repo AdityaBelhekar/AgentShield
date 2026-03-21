@@ -17,6 +17,7 @@ from agentshield.detection.base_detector import (
     DetectionContext,
 )
 from agentshield.detection.embedding_service import EmbeddingService
+from agentshield.detection.goal_drift import GoalDriftDetector
 from agentshield.detection.prompt_injection import (
     PromptInjectionDetector,
 )
@@ -25,5 +26,6 @@ __all__ = [
     "BaseDetector",
     "DetectionContext",
     "EmbeddingService",
+    "GoalDriftDetector",
     "PromptInjectionDetector",
 ]
