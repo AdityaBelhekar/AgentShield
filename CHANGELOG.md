@@ -91,6 +91,16 @@ Versions follow [Semantic Versioning](https://semver.org).
 - `BaseDetector._confidence_to_action()`: confidence → action
 - `supported_event_types` abstract property for routing
 
+### Phase 3B — Prompt Injection Detector
+- `PromptInjectionDetector`: 3-layer injection detection
+- Layer 1: Pattern matching — 50+ injection signatures
+- Layer 2: Semantic similarity against 10 injection templates
+- Layer 3: Structural analysis — regex-based marker detection
+- Lazy template embedding — computed once on first use
+- Analyzes LLM_PROMPT and TOOL_CALL_COMPLETE events
+- Confidence scoring: weighted combination of all 3 layers
+- Evidence dict includes pattern matches + structural markers
+
 ## [0.1.0] — In Development
 
 ### Phase 0 — Project Foundation
