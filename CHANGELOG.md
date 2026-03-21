@@ -76,6 +76,21 @@ Versions follow [Semantic Versioning](https://semver.org).
 - `shield()`: 4-line public API, policy param ready for Phase 5
 - SESSION_START emitted on wrap(), SESSION_END on close()
 
+### Phase 3A — Base Detector + Detection Context
+- `EmbeddingService`: lazy-loads sentence-transformers model
+- `EmbeddingService.embed()`: single text embedding
+- `EmbeddingService.embed_batch()`: batched embedding
+- `EmbeddingService._detect_device()`: ROCm→CUDA→CPU fallback
+- `DetectionContext`: session state dataclass for all detectors
+- `BaseDetector`: abstract base with shared detection utilities
+- `BaseDetector._build_threat()`: ThreatEvent constructor helper
+- `BaseDetector._cosine_similarity()`: safe cosine similarity
+- `BaseDetector._cosine_distance()`: 1 - cosine similarity
+- `BaseDetector._compute_zscore()`: z-score for anomaly detection
+- `BaseDetector._confidence_to_severity()`: confidence → severity
+- `BaseDetector._confidence_to_action()`: confidence → action
+- `supported_event_types` abstract property for routing
+
 ## [0.1.0] — In Development
 
 ### Phase 0 — Project Foundation
