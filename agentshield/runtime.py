@@ -13,6 +13,7 @@ from agentshield.config import AgentShieldConfig
 from agentshield.detection.engine import DetectionEngine
 from agentshield.events.emitter import EventEmitter
 from agentshield.events.models import (
+    BaseEvent,
     EventType,
     SessionEvent,
     SeverityLevel,
@@ -282,8 +283,13 @@ class AgentShieldRuntime:
 
         try:
             llm_interceptor.attach(agent)
+            self._wire_llm_event_hook(
+                llm_interceptor,
+                self._make_llm_event_hook(session_id),
+            )
             tool_interceptor.attach(tools)
             tool_interceptor.add_pre_call_hook(self._make_pre_call_hook(session_id))
+            tool_interceptor.add_post_call_hook(self._make_post_call_hook(session_id))
 
             if memory is not None:
                 memory_interceptor = MemoryInterceptor(
@@ -293,6 +299,10 @@ class AgentShieldRuntime:
                     agent_id=agent_id,
                 )
                 memory_interceptor.attach(memory)
+                self._wire_memory_event_hook(
+                    memory_interceptor,
+                    self._make_memory_event_hook(session_id),
+                )
         except InterceptorError:
             if memory_interceptor is not None and memory_interceptor.is_attached:
                 memory_interceptor.detach()
@@ -380,6 +390,143 @@ class AgentShieldRuntime:
 
         pre_call_hook.__name__ = "detection_engine_hook"
         return pre_call_hook
+
+    def _make_llm_event_hook(
+        self,
+        session_id: uuid.UUID,
+    ) -> Callable[[BaseEvent], None]:
+        """Create a callback that routes LLM events through DetectionEngine.
+
+        Args:
+            session_id: Session UUID for context lookup.
+
+        Returns:
+            Callable that accepts a BaseEvent and processes it.
+        """
+        engine = self._engine
+
+        def llm_event_hook(event: BaseEvent) -> None:
+            try:
+                engine.process_event(event)
+            except PolicyViolationError as exc:
+                logger.warning(
+                    "Policy violation from LLM event | session={} error={}",
+                    str(session_id)[:8],
+                    exc,
+                )
+                raise
+            except Exception as exc:
+                logger.error(
+                    "DetectionEngine error on LLM event | session={} error={}",
+                    str(session_id)[:8],
+                    exc,
+                )
+
+        llm_event_hook.__name__ = "detection_engine_llm_hook"
+        return llm_event_hook
+
+    def _make_memory_event_hook(
+        self,
+        session_id: uuid.UUID,
+    ) -> Callable[[BaseEvent], None]:
+        """Create a callback that routes memory events through DetectionEngine.
+
+        Args:
+            session_id: Session UUID for context lookup.
+
+        Returns:
+            Callable that accepts a BaseEvent and processes it.
+        """
+        engine = self._engine
+
+        def memory_event_hook(event: BaseEvent) -> None:
+            try:
+                engine.process_event(event)
+            except PolicyViolationError as exc:
+                logger.warning(
+                    "Policy violation from memory event | session={} error={}",
+                    str(session_id)[:8],
+                    exc,
+                )
+                raise
+            except Exception as exc:
+                logger.error(
+                    "DetectionEngine error on memory event | session={} error={}",
+                    str(session_id)[:8],
+                    exc,
+                )
+
+        memory_event_hook.__name__ = "detection_engine_memory_hook"
+        return memory_event_hook
+
+    def _make_post_call_hook(
+        self,
+        session_id: uuid.UUID,
+    ) -> Callable[[ToolCallEvent], None]:
+        """Create a post-call hook that routes TOOL_CALL_COMPLETE events.
+
+        Args:
+            session_id: Session UUID for context lookup.
+
+        Returns:
+            Post-call hook callable for ToolInterceptor.
+        """
+        engine = self._engine
+
+        def post_call_hook(event: ToolCallEvent) -> None:
+            try:
+                engine.process_event(event)
+            except Exception as exc:
+                logger.error(
+                    "DetectionEngine error on tool complete | session={} error={}",
+                    str(session_id)[:8],
+                    exc,
+                )
+
+        post_call_hook.__name__ = "detection_engine_post_hook"
+        return post_call_hook
+
+    def _wire_llm_event_hook(
+        self,
+        llm_interceptor: LLMInterceptor,
+        hook: Callable[[BaseEvent], None],
+    ) -> None:
+        """Wrap LLMInterceptor._emit to invoke a runtime-managed hook."""
+        original_emit = llm_interceptor._emit
+
+        def emit_with_hook(event: BaseEvent) -> None:
+            original_emit(event)
+            try:
+                hook(event)
+            except Exception as exc:
+                logger.error(
+                    "LLM event hook error | hook={} error={}",
+                    getattr(hook, "__name__", "unknown"),
+                    exc,
+                )
+
+        llm_interceptor._emit = emit_with_hook  # type: ignore[method-assign]
+
+    def _wire_memory_event_hook(
+        self,
+        memory_interceptor: MemoryInterceptor,
+        hook: Callable[[BaseEvent], None],
+    ) -> None:
+        """Wrap MemoryInterceptor._emit to invoke a runtime-managed hook."""
+        original_emit = memory_interceptor._emit
+
+        def emit_with_hook(event: BaseEvent) -> None:
+            original_emit(event)
+            try:
+                hook(event)
+            except Exception as exc:
+                logger.error(
+                    "Memory event hook error | hook={} error={}",
+                    getattr(hook, "__name__", "unknown"),
+                    exc,
+                )
+
+        memory_interceptor._emit = emit_with_hook  # type: ignore[method-assign]
 
     def _close_session(self, context: _SessionContext) -> None:
         """Close a session and clean up all resources.
