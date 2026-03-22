@@ -18,6 +18,7 @@ from agentshield.detection.base_detector import (
 )
 from agentshield.detection.embedding_service import EmbeddingService
 from agentshield.detection.goal_drift import GoalDriftDetector
+from agentshield.detection.memory_poison import MemoryPoisonDetector
 from agentshield.detection.prompt_injection import (
     PromptInjectionDetector,
 )
@@ -28,6 +29,7 @@ __all__ = [
     "DetectionContext",
     "EmbeddingService",
     "GoalDriftDetector",
+    "MemoryPoisonDetector",
     "PromptInjectionDetector",
     "ToolChainDetector",
 ]

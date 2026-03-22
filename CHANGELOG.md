@@ -123,6 +123,17 @@ Versions follow [Semantic Versioning](https://semver.org).
 - Confidence 0.95 on forbidden sequence match
 - Evidence includes matched pattern and full call history
 
+### Phase 3E — Memory Poison Detector
+- `MemoryPoisonDetector`: 3-layer memory poisoning detection
+- 35+ memory-specific poison patterns
+- Layer 1: pattern matching on memory content
+- Layer 2: semantic z-score anomaly vs session baseline
+- Layer 3: content length anomaly detection
+- Requires MIN_BASELINE_SIZE (3) writes before stat layers
+- Analyzes MEMORY_WRITE events only
+- Centroid-based distance computation for baseline
+- Evidence includes z-scores, baseline size, pattern matches
+
 ## [0.1.0] — In Development
 
 ### Phase 0 — Project Foundation
