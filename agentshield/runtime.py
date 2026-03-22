@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Literal, Protocol
@@ -9,9 +10,15 @@ from langchain_core.tools import BaseTool
 from loguru import logger
 
 from agentshield.config import AgentShieldConfig
+from agentshield.detection.engine import DetectionEngine
 from agentshield.events.emitter import EventEmitter
-from agentshield.events.models import EventType, SessionEvent, SeverityLevel
-from agentshield.exceptions import InterceptorError
+from agentshield.events.models import (
+    EventType,
+    SessionEvent,
+    SeverityLevel,
+    ToolCallEvent,
+)
+from agentshield.exceptions import InterceptorError, PolicyViolationError
 from agentshield.interceptors.llm_interceptor import LLMInterceptor
 from agentshield.interceptors.memory_interceptor import MemoryInterceptor
 from agentshield.interceptors.tool_interceptor import ToolInterceptor
@@ -208,11 +215,13 @@ class AgentShieldRuntime:
     Attributes:
         _config: AgentShieldConfig for this runtime.
         _emitter: Shared EventEmitter across all sessions.
+        _engine: DetectionEngine for threat orchestration.
         _sessions: Active sessions keyed by session_id.
     """
 
     _config: AgentShieldConfig
     _emitter: EventEmitter
+    _engine: DetectionEngine
     _sessions: dict[uuid.UUID, _SessionContext]
 
     def __init__(self, config: AgentShieldConfig) -> None:
@@ -223,6 +232,7 @@ class AgentShieldRuntime:
         """
         self._config = config
         self._emitter = EventEmitter(config)
+        self._engine = DetectionEngine(config, self._emitter)
         self._sessions = {}
 
         self._config.log_active_config()
@@ -273,6 +283,7 @@ class AgentShieldRuntime:
         try:
             llm_interceptor.attach(agent)
             tool_interceptor.attach(tools)
+            tool_interceptor.add_pre_call_hook(self._make_pre_call_hook(session_id))
 
             if memory is not None:
                 memory_interceptor = MemoryInterceptor(
@@ -303,6 +314,12 @@ class AgentShieldRuntime:
         )
         self._sessions[session_id] = context
 
+        self._engine.initialize_session(
+            session_id=session_id,
+            agent_id=agent_id,
+            original_task=original_task,
+        )
+
         self._emitter.emit(
             SessionEvent(
                 session_id=session_id,
@@ -327,6 +344,42 @@ class AgentShieldRuntime:
             emitter=self._emitter,
             runtime=self,
         )
+
+    def _make_pre_call_hook(
+        self,
+        session_id: uuid.UUID,
+    ) -> Callable[[ToolCallEvent], Any]:
+        """Create a pre-call hook that runs detection on tool events.
+
+        The hook is a closure that captures session_id and
+        routes the tool event through the DetectionEngine.
+        If DetectionEngine raises PolicyViolationError,
+        the hook converts it to a HookResult(block=True).
+
+        Args:
+            session_id: Session UUID for context lookup.
+
+        Returns:
+            Hook callable for ToolInterceptor.add_pre_call_hook().
+        """
+        from agentshield.interceptors.tool_interceptor import HookResult
+
+        _ = session_id
+        engine = self._engine
+
+        def pre_call_hook(event: ToolCallEvent) -> HookResult:
+            try:
+                engine.process_event(event)
+                return HookResult(block=False)
+            except PolicyViolationError as exc:
+                return HookResult(
+                    block=True,
+                    reason=exc.message,
+                    confidence=exc.confidence or 0.0,
+                )
+
+        pre_call_hook.__name__ = "detection_engine_hook"
+        return pre_call_hook
 
     def _close_session(self, context: _SessionContext) -> None:
         """Close a session and clean up all resources.
@@ -363,6 +416,7 @@ class AgentShieldRuntime:
         )
 
         self._emitter.flush()
+        self._engine.close_session(context.session_id)
         del self._sessions[context.session_id]
 
         logger.info(

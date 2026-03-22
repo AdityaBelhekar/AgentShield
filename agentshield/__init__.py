@@ -14,6 +14,7 @@ Docs:   https://agentshield.dev/docs
 """
 
 from agentshield.config import AgentShieldConfig
+from agentshield.detection import DetectionEngine
 from agentshield.events import (
     AuditLog,
     BaseEvent,
@@ -100,6 +101,7 @@ __all__ = [
     "BehavioralAnomalyError",
     "InterAgentInjectionError",
     # Runtime
+    "DetectionEngine",
     "AgentShieldRuntime",
     "WrappedAgent",
     "shield",

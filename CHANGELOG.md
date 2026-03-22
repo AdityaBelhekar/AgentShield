@@ -134,6 +134,24 @@ Versions follow [Semantic Versioning](https://semver.org).
 - Centroid-based distance computation for baseline
 - Evidence includes z-scores, baseline size, pattern matches
 
+### Phase 3F — Detection Engine
+- `DetectionEngine`: orchestrates all 4 detectors
+- `CorrelationResult`: cross-detector analysis result
+- Cross-detector correlation rules implemented:
+	- 1 detector: capped at ALERT, never BLOCK alone
+	- 2 detectors: escalate FLAG→ALERT, ALERT→BLOCK
+	- 3+ detectors: always BLOCK
+	- canary_triggered: immediate BLOCK always
+- Event routing table: O(1) lookup by EventType
+- `initialize_session()`: embeds original task at start
+- `process_event()`: routes, correlates, emits, raises
+- `close_session()`: cleans up context + drift history
+- `_update_context()`: tool history + memory embeddings
+- `_raise_policy_violation()`: typed exception per threat
+- `AgentShieldRuntime` wired to DetectionEngine
+- `_make_pre_call_hook()`: bridges tool interceptor + engine
+- Phase 3 COMPLETE - full detection pipeline operational
+
 ## [0.1.0] — In Development
 
 ### Phase 0 — Project Foundation
