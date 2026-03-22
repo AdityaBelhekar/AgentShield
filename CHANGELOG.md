@@ -112,6 +112,17 @@ Versions follow [Semantic Versioning](https://semver.org).
 - `clear_session()`: frees memory when session closes
 - Evidence includes full distance history for forensics
 
+### Phase 3D — Tool Chain Escalation Detector
+- `ToolChainDetector`: two-layer tool sequence detection
+- 25+ forbidden sequence patterns across 6 attack categories
+- Layer 1: suffix matching against FORBIDDEN_SEQUENCES
+- Layer 2: heuristic category-based escalation scoring
+- Tool categories: READ, WRITE, SEND, EXECUTE patterns
+- Hooks into TOOL_CALL_START — blocks before execution
+- No embedding dependency — pure structural analysis
+- Confidence 0.95 on forbidden sequence match
+- Evidence includes matched pattern and full call history
+
 ## [0.1.0] — In Development
 
 ### Phase 0 — Project Foundation
