@@ -13,7 +13,8 @@ class EventType(str, Enum):
     """Categorizes every event emitted during agent execution.
 
     Used as the discriminator field for deserializing raw
-    event dictionaries into the correct Pydantic model subclass.
+    event dictionaries into the correct Pydantic model subclass,
+    including canary injection/trigger and provenance tagging events.
     """
 
     SESSION_START = "SESSION_START"
@@ -30,6 +31,9 @@ class EventType(str, Enum):
     THREAT_DETECTED = "THREAT_DETECTED"
     THREAT_CLEARED = "THREAT_CLEARED"
     POLICY_VIOLATION = "POLICY_VIOLATION"
+    CANARY_INJECTED = "CANARY_INJECTED"
+    CANARY_TRIGGERED = "CANARY_TRIGGERED"
+    PROVENANCE_TAGGED = "PROVENANCE_TAGGED"
 
 
 class SeverityLevel(str, Enum):
@@ -522,6 +526,9 @@ EVENT_TYPE_MAP: dict[str, type[BaseEvent]] = {
     EventType.THREAT_DETECTED: ThreatEvent,
     EventType.THREAT_CLEARED: ThreatEvent,
     EventType.POLICY_VIOLATION: ThreatEvent,
+    EventType.CANARY_INJECTED: CanaryEvent,
+    EventType.CANARY_TRIGGERED: CanaryEvent,
+    EventType.PROVENANCE_TAGGED: ProvenanceEvent,
 }
 
 

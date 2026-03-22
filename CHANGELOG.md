@@ -5,6 +5,13 @@ Versions follow [Semantic Versioning](https://semver.org).
 
 ## [Unreleased]
 
+### Pre-Phase 4 Fixes
+- Fixed PolicyViolationError propagation in LLM/memory hooks
+- Added EventType.CANARY_INJECTED, CANARY_TRIGGERED,
+	PROVENANCE_TAGGED values
+- Mapped new event types to CanaryEvent/ProvenanceEvent
+	in deserialize_event()
+
 ### Phase 1A - Event Models
 - `EventType` enum: 14 event categories
 - `SeverityLevel` enum: 5 severity levels

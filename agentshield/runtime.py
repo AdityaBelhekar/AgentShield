@@ -397,6 +397,8 @@ class AgentShieldRuntime:
     ) -> Callable[[BaseEvent], None]:
         """Create a callback that routes LLM events through DetectionEngine.
 
+        Raises: PolicyViolationError if detection warrants blocking.
+
         Args:
             session_id: Session UUID for context lookup.
 
@@ -408,12 +410,7 @@ class AgentShieldRuntime:
         def llm_event_hook(event: BaseEvent) -> None:
             try:
                 engine.process_event(event)
-            except PolicyViolationError as exc:
-                logger.warning(
-                    "Policy violation from LLM event | session={} error={}",
-                    str(session_id)[:8],
-                    exc,
-                )
+            except PolicyViolationError:
                 raise
             except Exception as exc:
                 logger.error(
@@ -431,6 +428,8 @@ class AgentShieldRuntime:
     ) -> Callable[[BaseEvent], None]:
         """Create a callback that routes memory events through DetectionEngine.
 
+        Raises: PolicyViolationError if detection warrants blocking.
+
         Args:
             session_id: Session UUID for context lookup.
 
@@ -442,12 +441,7 @@ class AgentShieldRuntime:
         def memory_event_hook(event: BaseEvent) -> None:
             try:
                 engine.process_event(event)
-            except PolicyViolationError as exc:
-                logger.warning(
-                    "Policy violation from memory event | session={} error={}",
-                    str(session_id)[:8],
-                    exc,
-                )
+            except PolicyViolationError:
                 raise
             except Exception as exc:
                 logger.error(
