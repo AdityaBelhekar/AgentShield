@@ -13,6 +13,7 @@ GitHub: https://github.com/AdityaBelhekar/AgentShield
 Docs:   https://agentshield.dev/docs
 """
 
+from agentshield.canary import CanarySystem
 from agentshield.config import AgentShieldConfig
 from agentshield.detection import DetectionEngine
 from agentshield.events import (
@@ -64,6 +65,7 @@ __all__ = [
     "__version__",
     # Config
     "AgentShieldConfig",
+    "CanarySystem",
     # Events
     "AuditLog",
     "BaseEvent",

@@ -26,6 +26,20 @@ Versions follow [Semantic Versioning](https://semver.org).
 - shield() accepts tool_trust_overrides parameter
 - Original research: taint analysis for LLM agent contexts
 
+### Phase 4B — Canary Injection System
+- `CanarySystem`: honeypot token management
+- `CanaryToken`: cryptographic token with safe serialization
+- `CanarySessionState`: per-session token tracking
+- `generate_canary_token()`: secrets.token_hex based generator
+- `build_canary_instruction()`: context injection string
+- Scans LLM_RESPONSE and TOOL_CALL_COMPLETE for echoes
+- Canary trigger -> confidence=1.0, BLOCK, CRITICAL
+- Bypasses correlation - canary triggers are immediate block
+- Token rotation via canary_rotation_sessions config
+- Historical token tracking for delayed echo detection
+- get_canary_instruction() API for Phase 10 adapters
+- Original research: active honeypot detection for LLM agents
+
 ### Phase 1A - Event Models
 - `EventType` enum: 14 event categories
 - `SeverityLevel` enum: 5 severity levels

@@ -7,6 +7,7 @@ from typing import Any
 import numpy as np
 from loguru import logger
 
+from agentshield.canary.system import CanarySystem
 from agentshield.config import AgentShieldConfig
 from agentshield.detection.base_detector import BaseDetector, DetectionContext
 from agentshield.detection.embedding_service import EmbeddingService
@@ -17,6 +18,7 @@ from agentshield.detection.tool_chain import ToolChainDetector
 from agentshield.events.emitter import EventEmitter
 from agentshield.events.models import (
     BaseEvent,
+    CanaryEvent,
     EventType,
     MemoryEvent,
     RecommendedAction,
@@ -106,6 +108,7 @@ class DetectionEngine:
     _detector_routing: dict[EventType, list[BaseDetector]]
     _contexts: dict[str, DetectionContext]
     _provenance_tracker: ProvenanceTracker
+    _canary_system: CanarySystem
 
     def __init__(
         self,
@@ -141,6 +144,7 @@ class DetectionEngine:
             self._poison_detector,
         ]
         self._provenance_tracker = ProvenanceTracker(config)
+        self._canary_system = CanarySystem(config)
 
         self._detector_routing = self._build_routing_table()
 
@@ -195,6 +199,7 @@ class DetectionEngine:
 
         self._contexts[str(session_id)] = context
         self._provenance_tracker.initialize_session(session_id=session_id)
+        self._canary_system.initialize_session(session_id)
 
         logger.info(
             "Detection session initialized | session={} agent={} has_embedding={}",
@@ -268,6 +273,28 @@ class DetectionEngine:
         if provenance_event is not None:
             self._emitter.emit(provenance_event)
 
+        canary_threat = self._canary_system.process_event(event)
+        if canary_threat is not None:
+            canary_id = str(canary_threat.evidence.get("canary_id", "unknown"))
+            canary_hash = str(canary_threat.evidence.get("canary_hash", "unknown"))
+            trigger_context = str(canary_threat.evidence.get("trigger_context", ""))
+            canary_event = CanaryEvent(
+                session_id=event.session_id,
+                agent_id=event.agent_id,
+                event_type=EventType.CANARY_TRIGGERED,
+                severity=canary_threat.severity,
+                canary_id=canary_id,
+                canary_hash=canary_hash,
+                triggered=True,
+                trigger_context=trigger_context,
+            )
+            self._emitter.emit(canary_event)
+            self._emitter.emit(canary_threat)
+            context.threat_count += 1
+            if self._config.blocking_enabled:
+                context.blocked_count += 1
+                self._raise_policy_violation([canary_threat])
+
         self._update_context(context, event)
 
         if not relevant_detectors:
@@ -315,6 +342,7 @@ class DetectionEngine:
         self._drift_detector.clear_session(session_key)
         del self._contexts[session_key]
         self._provenance_tracker.close_session(session_id)
+        self._canary_system.close_session(session_id)
 
         logger.info("Detection session closed | session={}", session_key[:8])
 
@@ -336,6 +364,24 @@ class DetectionEngine:
             TrustLevel for this content.
         """
         return self._provenance_tracker.get_trust_level(session_id, content)
+
+    def get_canary_instruction(self, session_id: uuid.UUID) -> str | None:
+        """Get canary instruction for injection into LLM context.
+
+        Returns the canary instruction string that should be
+        injected into the system prompt before each LLM call.
+        Returns None if canary is disabled.
+
+        Called by Phase 10 adapters before LLM invocation.
+
+        Args:
+            session_id: UUID of the current session.
+
+        Returns:
+            Canary instruction string or None.
+        """
+
+        return self._canary_system.get_canary_instruction(session_id)
 
     @property
     def active_sessions(self) -> int:
