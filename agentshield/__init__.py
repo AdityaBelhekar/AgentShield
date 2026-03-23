@@ -53,6 +53,7 @@ from agentshield.exceptions import (
     RedisConnectionError,
     ToolCallBlockedError,
 )
+from agentshield.provenance import ProvenanceTracker
 from agentshield.runtime import AgentShieldRuntime, WrappedAgent, shield
 
 __version__ = "0.1.0"
@@ -102,6 +103,7 @@ __all__ = [
     "InterAgentInjectionError",
     # Runtime
     "DetectionEngine",
+    "ProvenanceTracker",
     "AgentShieldRuntime",
     "WrappedAgent",
     "shield",

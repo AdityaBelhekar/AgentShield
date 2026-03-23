@@ -12,6 +12,20 @@ Versions follow [Semantic Versioning](https://semver.org).
 - Mapped new event types to CanaryEvent/ProvenanceEvent
 	in deserialize_event()
 
+### Phase 4A — Prompt Provenance Tracker
+- `ProvenanceTracker`: tags all content with trust level
+- `ContentRecord`: provenance record (hash only, no raw content)
+- `ProvenanceContext`: per-session provenance state
+- `hash_content()`: SHA-256 content hashing utility
+- Trust classification: TRUSTED/INTERNAL/EXTERNAL/UNTRUSTED
+- URL detection in tool outputs -> UNTRUSTED classification
+- Per-tool trust level overrides via tool_trust_overrides
+- ProvenanceEvent emitted for every tagged content piece
+- Integrated into DetectionEngine.process_event()
+- DetectionEngine.get_trust_level() public API
+- shield() accepts tool_trust_overrides parameter
+- Original research: taint analysis for LLM agent contexts
+
 ### Phase 1A - Event Models
 - `EventType` enum: 14 event categories
 - `SeverityLevel` enum: 5 severity levels

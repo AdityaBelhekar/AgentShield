@@ -23,6 +23,7 @@ from agentshield.events.models import (
     ThreatEvent,
     ThreatType,
     ToolCallEvent,
+    TrustLevel,
 )
 from agentshield.exceptions import (
     GoalDriftError,
@@ -32,6 +33,7 @@ from agentshield.exceptions import (
     PromptInjectionError,
     ToolCallBlockedError,
 )
+from agentshield.provenance.tracker import ProvenanceTracker
 
 SINGLE_DETECTOR_MAX_ACTION = RecommendedAction.ALERT
 MULTI_DETECTOR_ESCALATE_THRESHOLD = 2
@@ -103,6 +105,7 @@ class DetectionEngine:
     _detectors: list[BaseDetector]
     _detector_routing: dict[EventType, list[BaseDetector]]
     _contexts: dict[str, DetectionContext]
+    _provenance_tracker: ProvenanceTracker
 
     def __init__(
         self,
@@ -137,6 +140,7 @@ class DetectionEngine:
             self._chain_detector,
             self._poison_detector,
         ]
+        self._provenance_tracker = ProvenanceTracker(config)
 
         self._detector_routing = self._build_routing_table()
 
@@ -190,6 +194,7 @@ class DetectionEngine:
         )
 
         self._contexts[str(session_id)] = context
+        self._provenance_tracker.initialize_session(session_id=session_id)
 
         logger.info(
             "Detection session initialized | session={} agent={} has_embedding={}",
@@ -242,10 +247,6 @@ class DetectionEngine:
 
         relevant_detectors = self._detector_routing.get(event.event_type, [])
 
-        if not relevant_detectors:
-            self._update_context(context, event)
-            return []
-
         raw_threats: list[ThreatEvent] = []
 
         for detector in relevant_detectors:
@@ -263,7 +264,14 @@ class DetectionEngine:
                     exc,
                 )
 
+        provenance_event = self._provenance_tracker.process_event(event)
+        if provenance_event is not None:
+            self._emitter.emit(provenance_event)
+
         self._update_context(context, event)
+
+        if not relevant_detectors:
+            return []
 
         if not raw_threats:
             return []
@@ -306,8 +314,28 @@ class DetectionEngine:
 
         self._drift_detector.clear_session(session_key)
         del self._contexts[session_key]
+        self._provenance_tracker.close_session(session_id)
 
         logger.info("Detection session closed | session={}", session_key[:8])
+
+    def get_trust_level(
+        self,
+        session_id: uuid.UUID,
+        content: str,
+    ) -> TrustLevel:
+        """Get the trust level for content in a session.
+
+        Delegates to ProvenanceTracker. Used by detectors
+        that want to apply extra scrutiny to untrusted content.
+
+        Args:
+            session_id: UUID of the session.
+            content: Content string to look up.
+
+        Returns:
+            TrustLevel for this content.
+        """
+        return self._provenance_tracker.get_trust_level(session_id, content)
 
     @property
     def active_sessions(self) -> int:

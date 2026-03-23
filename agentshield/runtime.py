@@ -18,6 +18,7 @@ from agentshield.events.models import (
     SessionEvent,
     SeverityLevel,
     ToolCallEvent,
+    TrustLevel,
 )
 from agentshield.exceptions import InterceptorError, PolicyViolationError
 from agentshield.interceptors.llm_interceptor import LLMInterceptor
@@ -247,6 +248,7 @@ class AgentShieldRuntime:
         original_task: str = "",
         agent_id: str = "default",
         framework: str = "langchain",
+        tool_trust_overrides: dict[str, TrustLevel] | None = None,
     ) -> WrappedAgent:
         """Wrap an agent with AgentShield protection.
 
@@ -257,6 +259,8 @@ class AgentShieldRuntime:
             original_task: The task string for this session.
             agent_id: Human-readable identifier for this agent.
             framework: Agent framework string for audit logs.
+            tool_trust_overrides: Optional per-tool trust level
+                overrides for provenance classification.
 
         Returns:
             WrappedAgent ready to use.
@@ -329,6 +333,13 @@ class AgentShieldRuntime:
             agent_id=agent_id,
             original_task=original_task,
         )
+        if tool_trust_overrides:
+            tracker = self._engine._provenance_tracker
+            tracker_context = tracker._contexts.get(str(session_id))
+            if tracker_context is not None:
+                tracker_context.tool_trust_overrides = {
+                    key.lower(): value for key, value in tool_trust_overrides.items()
+                }
 
         self._emitter.emit(
             SessionEvent(
@@ -585,6 +596,7 @@ def shield(
     agent_id: str = "default",
     framework: str = "langchain",
     policy: str | None = None,
+    tool_trust_overrides: dict[str, TrustLevel] | None = None,
 ) -> WrappedAgent:
     """Wrap an agent with AgentShield protection in a compact API.
 
@@ -597,6 +609,8 @@ def shield(
         agent_id: Human-readable agent identifier.
         framework: Agent framework string.
         policy: Policy name string reserved for Phase 5.
+        tool_trust_overrides: Optional per-tool trust level
+            overrides for provenance classification.
 
     Returns:
         WrappedAgent ready to use.
@@ -614,4 +628,5 @@ def shield(
         original_task=original_task,
         agent_id=agent_id,
         framework=framework,
+        tool_trust_overrides=tool_trust_overrides,
     )
