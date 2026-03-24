@@ -12,6 +12,7 @@ from agentshield.config import AgentShieldConfig
 from agentshield.detection.base_detector import BaseDetector, DetectionContext
 from agentshield.detection.embedding_service import EmbeddingService
 from agentshield.detection.goal_drift import GoalDriftDetector
+from agentshield.detection.inter_agent import AgentTrustGraph, InterAgentMonitor
 from agentshield.detection.memory_poison import MemoryPoisonDetector
 from agentshield.detection.prompt_injection import PromptInjectionDetector
 from agentshield.detection.tool_chain import ToolChainDetector
@@ -30,6 +31,7 @@ from agentshield.events.models import (
 )
 from agentshield.exceptions import (
     GoalDriftError,
+    InterAgentInjectionError,
     MemoryPoisonError,
     PolicyViolationError,
     PrivilegeEscalationError,
@@ -114,6 +116,8 @@ class DetectionEngine:
     _provenance_tracker: ProvenanceTracker
     _canary_system: CanarySystem
     _dna_system: DNASystem
+    _trust_graph: AgentTrustGraph
+    _inter_agent_monitor: InterAgentMonitor
 
     def __init__(
         self,
@@ -151,6 +155,8 @@ class DetectionEngine:
         self._provenance_tracker = ProvenanceTracker(config)
         self._canary_system = CanarySystem(config)
         self._dna_system = DNASystem(config)
+        self._trust_graph = AgentTrustGraph()
+        self._inter_agent_monitor = InterAgentMonitor(config, self._trust_graph)
 
         self._detector_routing = self._build_routing_table()
 
@@ -210,6 +216,13 @@ class DetectionEngine:
             session_id=session_id,
             agent_id=agent_id,
         )
+        self._trust_graph.register_agent(agent_id)
+        exposure_threat = self._inter_agent_monitor.check_receiver_exposure(
+            agent_id=agent_id,
+            session_id=session_id,
+        )
+        if exposure_threat is not None:
+            self._emitter.emit(exposure_threat)
 
         logger.info(
             "Detection session initialized | session={} agent={} has_embedding={}",
@@ -382,6 +395,14 @@ class DetectionEngine:
                     str(session_id)[:8],
                 )
 
+        prov_ctx = self._provenance_tracker.get_context(session_id)
+        untrusted_count = prov_ctx.untrusted_content_count if prov_ctx else 0
+        self._trust_graph.update_agent_trust(
+            agent_id=context.agent_id,
+            untrusted_count=untrusted_count,
+            threat_count=context.threat_count,
+        )
+
         del self._contexts[session_key]
 
         logger.info("Detection session closed | session={}", session_key[:8])
@@ -444,6 +465,62 @@ class DetectionEngine:
         """
 
         return self._canary_system.get_canary_instruction(session_id)
+
+    def record_inter_agent_message(
+        self,
+        sender_agent_id: str,
+        receiver_agent_id: str,
+        content: str,
+        receiver_session_id: uuid.UUID,
+    ) -> ThreatEvent | None:
+        """Record and analyze a message between agents.
+
+        Called by multi-agent framework adapters (Phase 10)
+        when one agent passes output to another.
+
+        Args:
+            sender_agent_id: Sending agent identifier.
+            receiver_agent_id: Receiving agent identifier.
+            content: Message content string.
+            receiver_session_id: Receiver's session UUID.
+
+        Returns:
+            ThreatEvent if inter-agent injection detected.
+            None if message appears clean.
+        """
+        from agentshield.provenance.models import hash_content
+
+        content_hash = hash_content(content)
+
+        trust_level = self._provenance_tracker.get_trust_level(
+            receiver_session_id,
+            content,
+        )
+
+        message = self._trust_graph.record_message(
+            sender_id=sender_agent_id,
+            receiver_id=receiver_agent_id,
+            content_hash=content_hash,
+            trust_level=trust_level,
+        )
+
+        threat = self._inter_agent_monitor.check_message(
+            message=message,
+            receiver_session_id=receiver_session_id,
+        )
+
+        if threat is not None:
+            self._emitter.emit(threat)
+
+        return threat
+
+    def get_trust_graph(self) -> AgentTrustGraph:
+        """Return the current agent trust graph.
+
+        Returns:
+            AgentTrustGraph instance.
+        """
+        return self._trust_graph
 
     @property
     def active_sessions(self) -> int:
@@ -705,6 +782,7 @@ class DetectionEngine:
             ThreatType.TOOL_CHAIN_ESCALATION: PrivilegeEscalationError,
             ThreatType.MEMORY_POISONING: MemoryPoisonError,
             ThreatType.TOOL_POISONING: ToolCallBlockedError,
+            ThreatType.INTER_AGENT_INJECTION: InterAgentInjectionError,
         }
 
         exception_cls = exception_map.get(primary.threat_type, PolicyViolationError)

@@ -15,7 +15,12 @@ Docs:   https://agentshield.dev/docs
 
 from agentshield.canary import CanarySystem
 from agentshield.config import AgentShieldConfig
-from agentshield.detection import DetectionEngine
+from agentshield.detection import (
+    AgentTrustGraph,
+    AgentTrustState,
+    DetectionEngine,
+    InterAgentMonitor,
+)
 from agentshield.dna import AgentBaseline, AnomalyReport, DNAAnomalyScorer, DNASystem
 from agentshield.events import (
     AuditLog,
@@ -109,7 +114,10 @@ __all__ = [
     "BehavioralAnomalyError",
     "InterAgentInjectionError",
     # Runtime
+    "AgentTrustGraph",
+    "AgentTrustState",
     "DetectionEngine",
+    "InterAgentMonitor",
     "ProvenanceTracker",
     "AgentShieldRuntime",
     "WrappedAgent",

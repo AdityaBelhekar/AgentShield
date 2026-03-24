@@ -68,6 +68,22 @@ Versions follow [Semantic Versioning](https://semver.org).
 - Interpretable: anomalous_features list in evidence
 - Original research: unsupervised behavioral anomaly detection
 
+### Phase 4E — Inter-Agent Threat Model
+- `AgentTrustState`: CLEAN/SUSPICIOUS/COMPROMISED/UNKNOWN
+- `AgentNode`: single agent in trust graph with state tracking
+- `InterAgentMessage`: cross-agent communication record
+- `AgentTrustGraph`: directed trust graph across agents
+- `InterAgentMonitor`: detects cross-agent injection attacks
+- Trust downgrade rules: COMPROMISED sender -> always UNTRUSTED
+- SUSPICIOUS sender downgrades content trust by one level
+- check_message(): flags suspicious inter-agent messages
+- check_receiver_exposure(): alerts on compromised senders
+- record_inter_agent_message() on DetectionEngine
+- Trust graph updated at session close from provenance context
+- Exposure check at session start for known agent histories
+- Phase 10 adapters will call record_inter_agent_message()
+- Original research: trust propagation model for agent pipelines
+
 ### Phase 1A - Event Models
 - `EventType` enum: 14 event categories
 - `SeverityLevel` enum: 5 severity levels
