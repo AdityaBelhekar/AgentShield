@@ -14,6 +14,7 @@ from agentshield.dna.features import (
     SessionFeatureVector,
     SessionObserver,
 )
+from agentshield.dna.scorer import AnomalyReport, DNAAnomalyScorer
 from agentshield.events.models import BaseEvent
 from agentshield.exceptions import DNAError
 
@@ -163,9 +164,7 @@ class AgentBaseline:
             baseline.session_count = int(session_count_value)
         elif isinstance(session_count_value, int):
             baseline.session_count = session_count_value
-        elif isinstance(session_count_value, float):
-            baseline.session_count = int(session_count_value)
-        elif isinstance(session_count_value, str):
+        elif isinstance(session_count_value, float | str):
             baseline.session_count = int(session_count_value)
         else:
             baseline.session_count = 0
@@ -231,6 +230,7 @@ class DNASystem:
         self._config = config
         self._baselines: dict[str, AgentBaseline] = {}
         self._observers: dict[str, SessionObserver] = {}
+        self._scorer = DNAAnomalyScorer(config)
         self._baseline_path = baseline_path
 
         if baseline_path is not None:
@@ -328,6 +328,29 @@ class DNASystem:
             self.save_baselines(self._baseline_path)
 
         return feature_vector
+
+    def score_session(
+        self,
+        feature_vector: SessionFeatureVector,
+        agent_id: str,
+    ) -> AnomalyReport | None:
+        """Score a completed session against the agent baseline.
+
+        Called after close_session() computes the feature vector.
+        Returns None if no established baseline exists.
+
+        Args:
+            feature_vector: Completed session features.
+            agent_id: Agent identifier for baseline lookup.
+
+        Returns:
+            AnomalyReport for the session, or None if baseline
+            does not exist or is not established.
+        """
+        baseline = self._baselines.get(agent_id)
+        if baseline is None:
+            return None
+        return self._scorer.score(feature_vector, baseline)
 
     def get_baseline(self, agent_id: str) -> AgentBaseline | None:
         """Return baseline for agent if available.

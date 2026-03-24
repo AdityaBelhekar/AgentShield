@@ -355,10 +355,33 @@ class DetectionEngine:
         self._drift_detector.clear_session(session_key)
         self._provenance_tracker.close_session(session_id)
         self._canary_system.close_session(session_id)
-        self._dna_system.close_session(
+        feature_vector = self._dna_system.close_session(
             session_id=session_id,
             agent_id=context.agent_id,
         )
+
+        if feature_vector is not None:
+            report = self._dna_system.score_session(
+                feature_vector=feature_vector,
+                agent_id=context.agent_id,
+            )
+            if report is not None and report.is_anomalous:
+                from agentshield.dna.scorer import DNAAnomalyScorer
+
+                scorer = DNAAnomalyScorer(self._config)
+                threat = scorer.build_threat_event(
+                    report=report,
+                    session_id_str=str(session_id),
+                    agent_id=context.agent_id,
+                )
+                self._emitter.emit(threat)
+                logger.warning(
+                    "Behavioral anomaly threat emitted | agent={} score={:.3f} session={}",
+                    context.agent_id,
+                    report.composite_score,
+                    str(session_id)[:8],
+                )
+
         del self._contexts[session_key]
 
         logger.info("Detection session closed | session={}", session_key[:8])

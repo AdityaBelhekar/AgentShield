@@ -54,6 +54,20 @@ Versions follow [Semantic Versioning](https://semver.org).
 - get_zscore() on baseline for Phase 4D anomaly scoring
 - Integrated into DetectionEngine session lifecycle
 
+### Phase 4D — Agent DNA Anomaly Scoring
+- `DNAAnomalyScorer`: scores sessions vs established baseline
+- `AnomalyReport`: per-feature anomaly breakdown
+- Composite score = weighted mean of z-score contributions
+- Feature weights: threat_firings(3x), velocity/chain(2x),
+	diversity/memory(1.5x), others(1x)
+- Anomaly scored at session end with full feature vector
+- BEHAVIORAL_ANOMALY threat type - FLAG/ALERT never BLOCK alone
+- Correlation with other detectors required for BLOCK
+- score_session() added to DNASystem
+- DetectionEngine emits threat on anomalous session close
+- Interpretable: anomalous_features list in evidence
+- Original research: unsupervised behavioral anomaly detection
+
 ### Phase 1A - Event Models
 - `EventType` enum: 14 event categories
 - `SeverityLevel` enum: 5 severity levels
