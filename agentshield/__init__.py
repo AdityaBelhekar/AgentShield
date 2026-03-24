@@ -16,6 +16,7 @@ Docs:   https://agentshield.dev/docs
 from agentshield.canary import CanarySystem
 from agentshield.config import AgentShieldConfig
 from agentshield.detection import DetectionEngine
+from agentshield.dna import AgentBaseline, DNASystem
 from agentshield.events import (
     AuditLog,
     BaseEvent,
@@ -66,6 +67,8 @@ __all__ = [
     # Config
     "AgentShieldConfig",
     "CanarySystem",
+    "DNASystem",
+    "AgentBaseline",
     # Events
     "AuditLog",
     "BaseEvent",

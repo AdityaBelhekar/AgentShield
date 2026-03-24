@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from loguru import logger
@@ -15,6 +15,7 @@ from agentshield.detection.goal_drift import GoalDriftDetector
 from agentshield.detection.memory_poison import MemoryPoisonDetector
 from agentshield.detection.prompt_injection import PromptInjectionDetector
 from agentshield.detection.tool_chain import ToolChainDetector
+from agentshield.dna.baseline import DNASystem
 from agentshield.events.emitter import EventEmitter
 from agentshield.events.models import (
     BaseEvent,
@@ -36,6 +37,9 @@ from agentshield.exceptions import (
     ToolCallBlockedError,
 )
 from agentshield.provenance.tracker import ProvenanceTracker
+
+if TYPE_CHECKING:
+    from agentshield.dna.baseline import AgentBaseline
 
 SINGLE_DETECTOR_MAX_ACTION = RecommendedAction.ALERT
 MULTI_DETECTOR_ESCALATE_THRESHOLD = 2
@@ -109,6 +113,7 @@ class DetectionEngine:
     _contexts: dict[str, DetectionContext]
     _provenance_tracker: ProvenanceTracker
     _canary_system: CanarySystem
+    _dna_system: DNASystem
 
     def __init__(
         self,
@@ -145,6 +150,7 @@ class DetectionEngine:
         ]
         self._provenance_tracker = ProvenanceTracker(config)
         self._canary_system = CanarySystem(config)
+        self._dna_system = DNASystem(config)
 
         self._detector_routing = self._build_routing_table()
 
@@ -200,6 +206,10 @@ class DetectionEngine:
         self._contexts[str(session_id)] = context
         self._provenance_tracker.initialize_session(session_id=session_id)
         self._canary_system.initialize_session(session_id)
+        self._dna_system.initialize_session(
+            session_id=session_id,
+            agent_id=agent_id,
+        )
 
         logger.info(
             "Detection session initialized | session={} agent={} has_embedding={}",
@@ -295,6 +305,8 @@ class DetectionEngine:
                 context.blocked_count += 1
                 self._raise_policy_violation([canary_threat])
 
+        self._dna_system.process_event(event)
+
         self._update_context(context, event)
 
         if not relevant_detectors:
@@ -336,15 +348,42 @@ class DetectionEngine:
         """
         session_key = str(session_id)
 
-        if session_key not in self._contexts:
+        context = self._contexts.get(session_key)
+        if context is None:
             return
 
         self._drift_detector.clear_session(session_key)
-        del self._contexts[session_key]
         self._provenance_tracker.close_session(session_id)
         self._canary_system.close_session(session_id)
+        self._dna_system.close_session(
+            session_id=session_id,
+            agent_id=context.agent_id,
+        )
+        del self._contexts[session_key]
 
         logger.info("Detection session closed | session={}", session_key[:8])
+
+    def get_agent_baseline(self, agent_id: str) -> AgentBaseline | None:
+        """Return the DNA baseline for an agent if available.
+
+        Args:
+            agent_id: Agent identifier to look up.
+
+        Returns:
+            AgentBaseline if available, None otherwise.
+        """
+        return self._dna_system.get_baseline(agent_id)
+
+    def is_dna_established(self, agent_id: str) -> bool:
+        """Check if DNA baseline is ready for this agent.
+
+        Args:
+            agent_id: Agent identifier.
+
+        Returns:
+            True if baseline has enough clean sessions.
+        """
+        return self._dna_system.is_baseline_established(agent_id)
 
     def get_trust_level(
         self,

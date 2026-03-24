@@ -40,6 +40,20 @@ Versions follow [Semantic Versioning](https://semver.org).
 - get_canary_instruction() API for Phase 10 adapters
 - Original research: active honeypot detection for LLM agents
 
+### Phase 4C — Agent DNA Fingerprinting (Baseline)
+- `SessionFeatureVector`: 13-feature behavioral vector per session
+- `SessionObserver`: live event observer, extracts features
+- `AgentBaseline`: statistical baseline (mean/std/min/max)
+- `DNASystem`: orchestrates baseline collection
+- Features: tool_call_count, unique_tools, tool_diversity,
+	prompt_length stats, tool_velocity, session_duration,
+	memory ops, response_length, llm_calls, chain_depth, threats
+- Only clean sessions (zero threats) contribute to baseline
+- Baseline established after dna_min_sessions (default 10)
+- JSON persistence for baselines between runtime restarts
+- get_zscore() on baseline for Phase 4D anomaly scoring
+- Integrated into DetectionEngine session lifecycle
+
 ### Phase 1A - Event Models
 - `EventType` enum: 14 event categories
 - `SeverityLevel` enum: 5 severity levels

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -51,6 +52,7 @@ class _SessionContext:
         original_task: The task the agent was given.
         framework: Agent framework in use.
         started_at: UTC timestamp of session start.
+        started_monotonic: Monotonic start marker for duration.
         llm_interceptor: Attached LLM interceptor.
         tool_interceptor: Attached tool interceptor.
         memory_interceptor: Attached memory interceptor or None.
@@ -63,6 +65,7 @@ class _SessionContext:
     original_task: str
     framework: str
     started_at: datetime
+    started_monotonic: float
     llm_interceptor: LLMInterceptor
     tool_interceptor: ToolInterceptor
     memory_interceptor: MemoryInterceptor | None = None
@@ -322,6 +325,7 @@ class AgentShieldRuntime:
             original_task=original_task,
             framework=framework,
             started_at=datetime.now(UTC),
+            started_monotonic=time.monotonic(),
             llm_interceptor=llm_interceptor,
             tool_interceptor=tool_interceptor,
             memory_interceptor=memory_interceptor,
@@ -542,6 +546,11 @@ class AgentShieldRuntime:
         if context.session_id not in self._sessions:
             return
 
+        session_duration_seconds = max(
+            time.monotonic() - context.started_monotonic,
+            0.0,
+        )
+
         try:
             context.llm_interceptor.detach()
             context.tool_interceptor.detach()
@@ -564,6 +573,12 @@ class AgentShieldRuntime:
                 framework=context.framework,
                 total_events=context.event_count,
                 threats_detected=context.threat_count,
+                metadata={
+                    "session_duration_seconds": round(
+                        session_duration_seconds,
+                        6,
+                    )
+                },
             )
         )
 
@@ -572,9 +587,10 @@ class AgentShieldRuntime:
         del self._sessions[context.session_id]
 
         logger.info(
-            "Session closed | session={} agent={}",
+            "Session closed | session={} agent={} duration={:.2f}s",
             context.session_id,
             context.agent_id,
+            session_duration_seconds,
         )
 
     @property
