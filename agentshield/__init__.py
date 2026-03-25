@@ -60,6 +60,14 @@ from agentshield.exceptions import (
     RedisConnectionError,
     ToolCallBlockedError,
 )
+from agentshield.policy import (
+    BUILTIN_POLICIES,
+    CompiledPolicy,
+    PolicyAction,
+    PolicyCompiler,
+    PolicyConfig,
+    PolicyRule,
+)
 from agentshield.provenance import ProvenanceTracker
 from agentshield.runtime import AgentShieldRuntime, WrappedAgent, shield
 
@@ -113,6 +121,13 @@ __all__ = [
     "MemoryPoisonError",
     "BehavioralAnomalyError",
     "InterAgentInjectionError",
+    # Policy
+    "PolicyCompiler",
+    "CompiledPolicy",
+    "PolicyConfig",
+    "PolicyRule",
+    "PolicyAction",
+    "BUILTIN_POLICIES",
     # Runtime
     "AgentTrustGraph",
     "AgentTrustState",

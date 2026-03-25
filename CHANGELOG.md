@@ -84,6 +84,20 @@ Versions follow [Semantic Versioning](https://semver.org).
 - Phase 10 adapters will call record_inter_agent_message()
 - Original research: trust propagation model for agent pipelines
 
+### Phase 5A — Policy Models + YAML Compiler
+- `PolicyAction` enum: BLOCK/ALERT/FLAG/LOG/ALLOW
+- `PolicyConditionType` enum: 7 condition categories
+- `PolicyCondition`: parameterized rule trigger
+- `PolicyRule`: named security rule with conditions + action
+- `PolicyConfig`: versioned policy with rules + tool lists
+- `CompiledPolicy`: executable compiled policy
+- `PolicyCompiler`: loads from name/YAML/object/None
+- Built-in policies: no_exfiltration, strict, monitor_only
+- YAML loading via PyYAML with schema validation
+- allowed_tools and denied_tools lists on PolicyConfig
+- ConfigurationError on invalid policy or missing file
+- monitor_only is safe default when policy=None
+
 ### Phase 1A - Event Models
 - `EventType` enum: 14 event categories
 - `SeverityLevel` enum: 5 severity levels
