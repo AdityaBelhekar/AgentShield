@@ -98,6 +98,22 @@ Versions follow [Semantic Versioning](https://semver.org).
 - ConfigurationError on invalid policy or missing file
 - monitor_only is safe default when policy=None
 
+### Phase 5B — Policy Evaluator
+- `PolicyEvaluator`: evaluates events against CompiledPolicy
+- `PolicyDecision`: result with action, rule, reason, flags
+- Evaluation order: denied_tools -> allowed_tools -> rules -> default
+- TOOL_CALL condition: substring tool name matching
+- TOOL_SEQUENCE condition: suffix matching on tool history
+- GOAL_DRIFT condition: threshold matching on ThreatEvents
+- INJECTION_SCORE condition: confidence threshold matching
+- MEMORY_WRITE condition: pattern matching on content_preview
+- AGENT_STATE condition: severity matching on threats
+- ALWAYS condition: catch-all rule
+- negate=True support on all conditions
+- ALLOW action suppresses all further detection
+- BLOCK action sets should_block=True for runtime
+- AND logic across conditions in a rule
+
 ### Phase 1A - Event Models
 - `EventType` enum: 14 event categories
 - `SeverityLevel` enum: 5 severity levels

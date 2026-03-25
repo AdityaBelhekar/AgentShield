@@ -66,6 +66,8 @@ from agentshield.policy import (
     PolicyAction,
     PolicyCompiler,
     PolicyConfig,
+    PolicyDecision,
+    PolicyEvaluator,
     PolicyRule,
 )
 from agentshield.provenance import ProvenanceTracker
@@ -127,6 +129,8 @@ __all__ = [
     "PolicyConfig",
     "PolicyRule",
     "PolicyAction",
+    "PolicyDecision",
+    "PolicyEvaluator",
     "BUILTIN_POLICIES",
     # Runtime
     "AgentTrustGraph",
