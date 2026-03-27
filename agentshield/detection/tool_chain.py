@@ -18,6 +18,7 @@ from agentshield.events.models import (
     ToolCallEvent,
 )
 
+# TODO(config): make user-overridable in Phase 12 config schema
 FORBIDDEN_SEQUENCES: list[tuple[str, ...]] = [
     # Read then send - classic exfiltration
     ("read_file", "send_email"),
@@ -331,12 +332,13 @@ class ToolChainDetector(BaseDetector):
         Detects escalation patterns not covered by exact
         forbidden sequence matching. Scores based on:
 
-          READ -> SEND transition:    +0.40
-          EXECUTE -> SEND transition: +0.45
-          High call velocity (>10):   +0.15
-          Repeated tool (>3 times):   +0.20
+          READ -> SEND transition:    +config threshold
+          EXECUTE -> SEND transition: +config threshold
+          High call velocity (>N):    +config bonus
+          Repeated tool (>N times):   +config bonus
 
-        Threshold: returns threat only if score >= 0.40.
+        Threshold: returns threat only if score is above the configured
+        anomaly threshold.
 
         Args:
             candidate_sequence: Tool names including current.
@@ -358,31 +360,31 @@ class ToolChainDetector(BaseDetector):
         previous_is_execute = self._is_category(previous, EXECUTE_PATTERNS)
 
         if current_is_send and previous_is_read:
-            score += 0.40
+            score += self._config.tool_chain_read_send_transition_score
             signals.append("read_then_send_transition")
 
         if current_is_send and previous_is_execute:
-            score += 0.45
+            score += self._config.tool_chain_execute_send_transition_score
             signals.append("execute_then_send_transition")
 
         total_calls = len(candidate_sequence)
-        if total_calls > 10:
-            score += 0.15
+        if total_calls > self._config.tool_chain_high_call_velocity_threshold:
+            score += self._config.tool_chain_high_call_velocity_bonus
             signals.append(f"high_call_velocity_{total_calls}_calls")
 
         current_count = candidate_sequence.count(current)
-        if current_count > 3:
-            score += 0.20
+        if current_count > self._config.tool_chain_repeated_tool_threshold:
+            score += self._config.tool_chain_repeated_tool_bonus
             signals.append(f"repeated_tool_{current}_{current_count}_times")
 
-        if score < 0.40:
+        if score < self._config.tool_chain_anomaly_score_threshold:
             return None
 
         action = self._confidence_to_action(
             confidence=score,
-            block_threshold=0.80,
-            alert_threshold=0.60,
-            flag_threshold=0.40,
+            block_threshold=self._config.tool_chain_block_threshold,
+            alert_threshold=self._config.tool_chain_alert_threshold,
+            flag_threshold=self._config.tool_chain_flag_threshold,
         )
         severity = self._confidence_to_severity(score)
 

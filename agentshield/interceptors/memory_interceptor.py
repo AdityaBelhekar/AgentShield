@@ -9,7 +9,7 @@ from loguru import logger
 from agentshield.config import AgentShieldConfig
 from agentshield.events.emitter import EventEmitter
 from agentshield.events.models import EventType, MemoryEvent, SeverityLevel
-from agentshield.exceptions import InterceptorError
+from agentshield.exceptions import InterceptorError, PolicyViolationError
 from agentshield.interceptors.base import BaseInterceptor
 
 
@@ -112,7 +112,7 @@ class MemoryInterceptor(BaseInterceptor):
             )
         except InterceptorError:
             raise
-        except Exception as exc:
+        except (AttributeError, TypeError, ValueError) as exc:
             raise InterceptorError(
                 f"Failed to attach MemoryInterceptor: {exc}"
             ) from exc
@@ -141,7 +141,7 @@ class MemoryInterceptor(BaseInterceptor):
             self._attached = False
 
             logger.info("MemoryInterceptor detached | session={}", self._session_id)
-        except Exception as exc:
+        except (AttributeError, TypeError, ValueError) as exc:
             raise InterceptorError(
                 f"Failed to detach MemoryInterceptor: {exc}"
             ) from exc
@@ -197,6 +197,8 @@ class MemoryInterceptor(BaseInterceptor):
                 self._session_id,
             )
         except Exception as exc:  # pragma: no cover - defensive callback safety
+            if isinstance(exc, PolicyViolationError):
+                raise
             logger.error("MemoryInterceptor save wrapper error | error={}", exc)
 
         if self._original_save_context is None:
@@ -249,6 +251,8 @@ class MemoryInterceptor(BaseInterceptor):
                 self._session_id,
             )
         except Exception as exc:  # pragma: no cover - defensive callback safety
+            if isinstance(exc, PolicyViolationError):
+                raise
             logger.error("MemoryInterceptor load wrapper error | error={}", exc)
 
         return result

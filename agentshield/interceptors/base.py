@@ -123,13 +123,6 @@ class BaseInterceptor(ABC):
                 event.event_type,
                 exc,
             )
-        except Exception as exc:  # pragma: no cover - defensive safety net
-            logger.error(
-                "{} unexpected error during emit | type={} error={}",
-                self.__class__.__name__,
-                event.event_type,
-                exc,
-            )
 
     def _make_base_kwargs(self, **overrides: Any) -> dict[str, Any]:
         """Build common kwargs shared by all event constructors.

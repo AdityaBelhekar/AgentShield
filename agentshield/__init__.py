@@ -72,6 +72,7 @@ from agentshield.policy import (
 )
 from agentshield.provenance import ProvenanceTracker
 from agentshield.runtime import AgentShieldRuntime, WrappedAgent, shield
+from agentshield.scrubber import EventScrubber
 
 __version__ = "0.1.0"
 __author__ = "GroundTruth"
@@ -141,4 +142,5 @@ __all__ = [
     "AgentShieldRuntime",
     "WrappedAgent",
     "shield",
+    "EventScrubber",
 ]

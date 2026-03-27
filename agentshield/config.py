@@ -15,7 +15,7 @@ Exception: redis_url and embedding_* use their own prefixes.
 from __future__ import annotations
 
 from loguru import logger
-from pydantic import field_validator, model_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -105,6 +105,92 @@ class AgentShieldConfig(BaseSettings):
     event_channel: str = "agentshield:events"
     max_event_history: int = 10000
 
+    # Detection tuning - Issue 4 fix (moved from hardcoded)
+    rolling_window_size: int = Field(
+        default=10,
+        description="Rolling window size for goal drift averaging",
+    )
+    min_prompts_before_block: int = Field(
+        default=3,
+        description=("Minimum prompt count before goal drift " "triggers a BLOCK"),
+    )
+    goal_drift_correlation_threshold: float = Field(
+        default=0.70,
+        description=("Cosine distance threshold at which " "goal drift detector fires"),
+    )
+    memory_zscore_threshold: float = Field(
+        default=3.0,
+        description=("Z-score threshold for memory poison " "anomaly detection"),
+    )
+
+    # Tool-chain heuristic thresholds (Phase 5D)
+    tool_chain_read_send_transition_score: float = Field(
+        default=0.40,
+        description="Score added for READ -> SEND transitions",
+    )
+    tool_chain_execute_send_transition_score: float = Field(
+        default=0.45,
+        description="Score added for EXECUTE -> SEND transitions",
+    )
+    tool_chain_high_call_velocity_threshold: int = Field(
+        default=10,
+        description="Tool-call count threshold for high velocity signal",
+    )
+    tool_chain_high_call_velocity_bonus: float = Field(
+        default=0.15,
+        description="Score bonus for high tool-call velocity",
+    )
+    tool_chain_repeated_tool_threshold: int = Field(
+        default=3,
+        description="Repeat count threshold for repeated-tool signal",
+    )
+    tool_chain_repeated_tool_bonus: float = Field(
+        default=0.20,
+        description="Score bonus for repeated-tool signal",
+    )
+    tool_chain_anomaly_score_threshold: float = Field(
+        default=0.40,
+        description="Minimum heuristic score required to emit threat",
+    )
+    tool_chain_flag_threshold: float = Field(
+        default=0.40,
+        description="Heuristic score threshold for FLAG action",
+    )
+    tool_chain_alert_threshold: float = Field(
+        default=0.60,
+        description="Heuristic score threshold for ALERT action",
+    )
+    tool_chain_block_threshold: float = Field(
+        default=0.80,
+        description="Heuristic score threshold for BLOCK action",
+    )
+
+    # Memory poison detection thresholds (Phase 5D)
+    memory_poison_z_score_threshold: float = Field(
+        default=3.0,
+        description="Z-score threshold for memory poison anomaly signals",
+    )
+    memory_poison_baseline_window_size: int = Field(
+        default=3,
+        description="Baseline window size used by memory poison detector",
+    )
+    memory_poison_min_samples_before_detection: int = Field(
+        default=3,
+        description="Minimum samples required before memory anomaly scoring",
+    )
+    memory_poison_anomaly_score_threshold: float = Field(
+        default=0.25,
+        description="Minimum confidence score required to emit memory poison threat",
+    )
+    memory_poison_alert_threshold: float = Field(
+        default=0.55,
+        description="Memory poison confidence threshold for ALERT action",
+    )
+    memory_poison_block_threshold: float = Field(
+        default=0.80,
+        description="Memory poison confidence threshold for BLOCK action",
+    )
+
     # ── Validators ─────────────────────────────────────────────
 
     @field_validator("log_level")
@@ -131,10 +217,22 @@ class AgentShieldConfig(BaseSettings):
     @field_validator(
         "goal_drift_threshold",
         "goal_drift_block_threshold",
+        "goal_drift_correlation_threshold",
         "injection_similarity_threshold",
         "injection_pattern_threshold",
         "anomaly_sensitivity",
         "dna_learning_rate",
+        "tool_chain_read_send_transition_score",
+        "tool_chain_execute_send_transition_score",
+        "tool_chain_high_call_velocity_bonus",
+        "tool_chain_repeated_tool_bonus",
+        "tool_chain_anomaly_score_threshold",
+        "tool_chain_flag_threshold",
+        "tool_chain_alert_threshold",
+        "tool_chain_block_threshold",
+        "memory_poison_anomaly_score_threshold",
+        "memory_poison_alert_threshold",
+        "memory_poison_block_threshold",
     )
     @classmethod
     def validate_float_0_to_1(cls, v: float) -> float:
@@ -175,6 +273,24 @@ class AgentShieldConfig(BaseSettings):
             )
         return v
 
+    @field_validator("memory_zscore_threshold", "memory_poison_z_score_threshold")
+    @classmethod
+    def validate_memory_zscore_positive(cls, v: float) -> float:
+        """Validate that memory z-score thresholds are positive.
+
+        Args:
+            v: Z-score threshold to validate.
+
+        Returns:
+            Validated z-score threshold.
+
+        Raises:
+            ValueError: If value is non-positive.
+        """
+        if v <= 0.0:
+            raise ValueError(f"memory z-score threshold must be positive, got {v}")
+        return v
+
     @field_validator("dna_min_sessions")
     @classmethod
     def validate_min_sessions(cls, v: int) -> int:
@@ -192,6 +308,29 @@ class AgentShieldConfig(BaseSettings):
         """
         if v < 3:
             raise ValueError(f"dna_min_sessions must be at least 3, got {v}")
+        return v
+
+    @field_validator(
+        "tool_chain_high_call_velocity_threshold",
+        "tool_chain_repeated_tool_threshold",
+        "memory_poison_baseline_window_size",
+        "memory_poison_min_samples_before_detection",
+    )
+    @classmethod
+    def validate_positive_int_thresholds(cls, v: int) -> int:
+        """Validate integer thresholds that must be positive.
+
+        Args:
+            v: Integer threshold value.
+
+        Returns:
+            Validated integer threshold.
+
+        Raises:
+            ValueError: If value is not positive.
+        """
+        if v <= 0:
+            raise ValueError(f"integer threshold must be positive, got {v}")
         return v
 
     @model_validator(mode="after")

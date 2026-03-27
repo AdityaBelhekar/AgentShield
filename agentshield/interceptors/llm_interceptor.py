@@ -10,7 +10,7 @@ from loguru import logger
 from agentshield.config import AgentShieldConfig
 from agentshield.events.emitter import EventEmitter
 from agentshield.events.models import BaseEvent, EventType, LLMEvent, SeverityLevel
-from agentshield.exceptions import InterceptorError
+from agentshield.exceptions import InterceptorError, PolicyViolationError
 from agentshield.interceptors.base import BaseInterceptor
 
 
@@ -87,7 +87,7 @@ class LLMInterceptor(BaseCallbackHandler, BaseInterceptor):
             )
         except InterceptorError:
             raise
-        except Exception as exc:
+        except (AttributeError, TypeError, ValueError) as exc:
             raise InterceptorError(f"Failed to attach LLMInterceptor: {exc}") from exc
 
     def detach(self) -> None:
@@ -113,7 +113,7 @@ class LLMInterceptor(BaseCallbackHandler, BaseInterceptor):
                 self._agent_id,
                 self._session_id,
             )
-        except Exception as exc:
+        except (AttributeError, TypeError, ValueError) as exc:
             raise InterceptorError(f"Failed to detach LLMInterceptor: {exc}") from exc
 
     @property
@@ -168,10 +168,10 @@ class LLMInterceptor(BaseCallbackHandler, BaseInterceptor):
                 self._session_id,
             )
         except Exception as exc:  # pragma: no cover - callback safety
-            logger.error(
-                "LLMInterceptor.on_llm_start error | run_id={} error={}",
-                run_id,
-                exc,
+            self._handle_callback_exception(
+                callback_name="on_llm_start",
+                run_id=run_id,
+                error=exc,
             )
 
     def on_llm_end(
@@ -240,10 +240,10 @@ class LLMInterceptor(BaseCallbackHandler, BaseInterceptor):
                 self._session_id,
             )
         except Exception as exc:  # pragma: no cover - callback safety
-            logger.error(
-                "LLMInterceptor.on_llm_end error | run_id={} error={}",
-                run_id,
-                exc,
+            self._handle_callback_exception(
+                callback_name="on_llm_end",
+                run_id=run_id,
+                error=exc,
             )
 
     def on_llm_error(
@@ -285,10 +285,10 @@ class LLMInterceptor(BaseCallbackHandler, BaseInterceptor):
                 self._session_id,
             )
         except Exception as exc:  # pragma: no cover - callback safety
-            logger.error(
-                "LLMInterceptor.on_llm_error handler error | run_id={} error={}",
-                run_id,
-                exc,
+            self._handle_callback_exception(
+                callback_name="on_llm_error",
+                run_id=run_id,
+                error=exc,
             )
 
     def on_chain_start(
@@ -331,10 +331,10 @@ class LLMInterceptor(BaseCallbackHandler, BaseInterceptor):
                 self._session_id,
             )
         except Exception as exc:  # pragma: no cover - callback safety
-            logger.error(
-                "LLMInterceptor.on_chain_start error | run_id={} error={}",
-                run_id,
-                exc,
+            self._handle_callback_exception(
+                callback_name="on_chain_start",
+                run_id=run_id,
+                error=exc,
             )
 
     def on_chain_end(
@@ -366,10 +366,10 @@ class LLMInterceptor(BaseCallbackHandler, BaseInterceptor):
 
             logger.debug("Chain end intercepted | session={}", self._session_id)
         except Exception as exc:  # pragma: no cover - callback safety
-            logger.error(
-                "LLMInterceptor.on_chain_end error | run_id={} error={}",
-                run_id,
-                exc,
+            self._handle_callback_exception(
+                callback_name="on_chain_end",
+                run_id=run_id,
+                error=exc,
             )
 
     def on_chain_error(
@@ -409,8 +409,34 @@ class LLMInterceptor(BaseCallbackHandler, BaseInterceptor):
                 self._session_id,
             )
         except Exception as exc:  # pragma: no cover - callback safety
-            logger.error(
-                "LLMInterceptor.on_chain_error handler error | run_id={} error={}",
-                run_id,
-                exc,
+            self._handle_callback_exception(
+                callback_name="on_chain_error",
+                run_id=run_id,
+                error=exc,
             )
+
+    def _handle_callback_exception(
+        self,
+        callback_name: str,
+        run_id: uuid.UUID,
+        error: Exception,
+    ) -> None:
+        """Handle callback exceptions while preserving policy enforcement.
+
+        Args:
+            callback_name: Callback method name for logging context.
+            run_id: LangChain run identifier.
+            error: Exception raised during callback processing.
+
+        Raises:
+            PolicyViolationError: Re-raised to preserve BLOCK semantics.
+        """
+        if isinstance(error, PolicyViolationError):
+            raise error
+
+        logger.error(
+            "LLMInterceptor.{} error | run_id={} error={}",
+            callback_name,
+            run_id,
+            error,
+        )

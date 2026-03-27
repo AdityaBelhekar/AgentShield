@@ -38,6 +38,14 @@ from agentshield.exceptions import (
     PromptInjectionError,
     ToolCallBlockedError,
 )
+from agentshield.policy import (
+    CompiledPolicy,
+    PolicyAction,
+    PolicyCompiler,
+    PolicyDecision,
+    PolicyEvaluator,
+)
+from agentshield.policy.models import PolicyConfig
 from agentshield.provenance.tracker import ProvenanceTracker
 
 if TYPE_CHECKING:
@@ -118,11 +126,12 @@ class DetectionEngine:
     _dna_system: DNASystem
     _trust_graph: AgentTrustGraph
     _inter_agent_monitor: InterAgentMonitor
+    _policy_evaluator: PolicyEvaluator | None
 
     def __init__(
         self,
         config: AgentShieldConfig,
-        emitter: EventEmitter,
+        emitter: EventEmitter | None = None,
     ) -> None:
         """Initialize the DetectionEngine.
 
@@ -132,9 +141,10 @@ class DetectionEngine:
         Args:
             config: AgentShieldConfig with all thresholds.
             emitter: EventEmitter for publishing ThreatEvents.
+                If None, an EventEmitter is created.
         """
         self._config = config
-        self._emitter = emitter
+        self._emitter = emitter or EventEmitter(config)
         self._contexts = {}
 
         self._embedding_service = EmbeddingService(config)
@@ -157,6 +167,7 @@ class DetectionEngine:
         self._dna_system = DNASystem(config)
         self._trust_graph = AgentTrustGraph()
         self._inter_agent_monitor = InterAgentMonitor(config, self._trust_graph)
+        self._policy_evaluator = None
 
         self._detector_routing = self._build_routing_table()
 
@@ -165,6 +176,36 @@ class DetectionEngine:
             len(self._detectors),
             config.detection_enabled,
             config.blocking_enabled,
+        )
+
+    def set_policy(
+        self,
+        policy: PolicyConfig | str | None,
+    ) -> None:
+        """Attach a compiled policy evaluator to this engine.
+
+        Compiles the given policy and attaches a PolicyEvaluator.
+        Pass None to remove any active policy (engine will use
+        correlation result only).
+
+        Args:
+            policy: A PolicyConfig object, a built-in policy
+                name string ("no_exfiltration", "strict",
+                "monitor_only"), a path to a YAML policy
+                file, or None to disable policy evaluation.
+        """
+        if policy is None:
+            self._policy_evaluator = None
+            logger.info("Policy detached from DetectionEngine")
+            return
+
+        compiler = PolicyCompiler(self._config)
+        compiled: CompiledPolicy = compiler.compile(policy)
+        self._policy_evaluator = PolicyEvaluator(self._config, compiled)
+        logger.info(
+            "Policy attached to DetectionEngine | policy={} rules={}",
+            compiled.name,
+            len(compiled.enabled_rules),
         )
 
     def initialize_session(
@@ -273,29 +314,6 @@ class DetectionEngine:
             )
             return []
 
-        relevant_detectors = self._detector_routing.get(event.event_type, [])
-
-        raw_threats: list[ThreatEvent] = []
-
-        for detector in relevant_detectors:
-            try:
-                threat = detector.analyze(event, context)
-                if threat is not None:
-                    raw_threats.append(threat)
-            except PolicyViolationError:
-                raise
-            except Exception as exc:
-                logger.error(
-                    "Detector error | detector={} event_type={} error={}",
-                    detector.detector_name,
-                    event.event_type,
-                    exc,
-                )
-
-        provenance_event = self._provenance_tracker.process_event(event)
-        if provenance_event is not None:
-            self._emitter.emit(provenance_event)
-
         canary_threat = self._canary_system.process_event(event)
         if canary_threat is not None:
             canary_id = str(canary_threat.evidence.get("canary_id", "unknown"))
@@ -314,11 +332,33 @@ class DetectionEngine:
             self._emitter.emit(canary_event)
             self._emitter.emit(canary_threat)
             context.threat_count += 1
-            if self._config.blocking_enabled:
-                context.blocked_count += 1
-                self._raise_policy_violation([canary_threat])
+            context.blocked_count += 1
+            self._raise_policy_violation([canary_threat])
 
         self._dna_system.process_event(event)
+
+        provenance_event = self._provenance_tracker.process_event(event)
+        if provenance_event is not None:
+            self._emitter.emit(provenance_event)
+
+        relevant_detectors = self._detector_routing.get(event.event_type, [])
+
+        raw_threats: list[ThreatEvent] = []
+
+        for detector in relevant_detectors:
+            try:
+                threat = detector.analyze(event, context)
+                if threat is not None:
+                    raw_threats.append(threat)
+            except PolicyViolationError:
+                raise
+            except (RuntimeError, ValueError, TypeError) as exc:
+                logger.error(
+                    "Detector error | detector={} event_type={} error={}",
+                    detector.detector_name,
+                    event.event_type,
+                    exc,
+                )
 
         self._update_context(context, event)
 
@@ -329,8 +369,76 @@ class DetectionEngine:
             return []
 
         correlation = self._correlate_threats(raw_threats)
+        threat_events = correlation.threats
+        final_action = correlation.final_action
+        should_block = correlation.should_block
 
-        for threat in correlation.threats:
+        # -- Policy evaluation (Phase 5C) --------------------
+        policy_decision: PolicyDecision | None = None
+        if self._policy_evaluator is not None:
+            policy_decision = self._policy_evaluator.evaluate(
+                event=event,
+                threats=threat_events,
+                context=context,
+            )
+
+            if policy_decision.should_suppress:
+                logger.info(
+                    "Policy ALLOW: event suppressed | event_id={} rule={}",
+                    event.id,
+                    (
+                        policy_decision.matched_rule.id
+                        if policy_decision.matched_rule
+                        else "default"
+                    ),
+                )
+                return []
+
+            if policy_decision.action == PolicyAction.BLOCK:
+                final_action = RecommendedAction.BLOCK
+                should_block = True
+                logger.warning(
+                    "Policy BLOCK override | event_id={} rule={}",
+                    event.id,
+                    (
+                        policy_decision.matched_rule.id
+                        if policy_decision.matched_rule
+                        else "default"
+                    ),
+                )
+            elif (
+                policy_decision.action == PolicyAction.ALERT
+                and final_action == RecommendedAction.FLAG
+            ):
+                final_action = RecommendedAction.ALERT
+                logger.debug(
+                    "Policy escalated FLAG -> ALERT | event_id={}",
+                    event.id,
+                )
+        # -- End policy evaluation ----------------------------
+
+        if final_action == RecommendedAction.BLOCK:
+            threat_events = [
+                threat.model_copy(
+                    update={"recommended_action": RecommendedAction.BLOCK}
+                )
+                for threat in threat_events
+            ]
+        elif final_action == RecommendedAction.ALERT:
+            threat_events = [
+                threat.model_copy(
+                    update={
+                        "recommended_action": (
+                            RecommendedAction.ALERT
+                            if threat.recommended_action == RecommendedAction.FLAG
+                            else threat.recommended_action
+                        )
+                    }
+                )
+                for threat in threat_events
+            ]
+
+        for threat in threat_events:
             self._emitter.emit(threat)
             context.threat_count += 1
 
@@ -338,15 +446,15 @@ class DetectionEngine:
             logger.warning(
                 "Threats escalated by correlation | detector_count={} final_action={} session={}",
                 correlation.detector_count,
-                correlation.final_action,
+                final_action,
                 session_key[:8],
             )
 
-        if correlation.should_block and self._config.blocking_enabled:
+        if should_block and self._config.blocking_enabled:
             context.blocked_count += 1
-            self._raise_policy_violation(correlation.threats)
+            self._raise_policy_violation(threat_events)
 
-        return correlation.threats
+        return threat_events
 
     def close_session(self, session_id: uuid.UUID) -> None:
         """Close a detection session and free resources.

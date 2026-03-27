@@ -5,7 +5,7 @@ import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any, Literal, Protocol
+from typing import Any, Literal, Protocol, cast
 
 from langchain_core.tools import BaseTool
 from loguru import logger
@@ -25,6 +25,7 @@ from agentshield.exceptions import InterceptorError, PolicyViolationError
 from agentshield.interceptors.llm_interceptor import LLMInterceptor
 from agentshield.interceptors.memory_interceptor import MemoryInterceptor
 from agentshield.interceptors.tool_interceptor import ToolInterceptor
+from agentshield.policy.models import PolicyConfig
 
 
 class BaseMemory(Protocol):
@@ -220,13 +221,13 @@ class AgentShieldRuntime:
     Attributes:
         _config: AgentShieldConfig for this runtime.
         _emitter: Shared EventEmitter across all sessions.
-        _engine: DetectionEngine for threat orchestration.
+        detection_engine: DetectionEngine for threat orchestration.
         _sessions: Active sessions keyed by session_id.
     """
 
     _config: AgentShieldConfig
     _emitter: EventEmitter
-    _engine: DetectionEngine
+    detection_engine: DetectionEngine
     _sessions: dict[uuid.UUID, _SessionContext]
 
     def __init__(self, config: AgentShieldConfig) -> None:
@@ -237,7 +238,7 @@ class AgentShieldRuntime:
         """
         self._config = config
         self._emitter = EventEmitter(config)
-        self._engine = DetectionEngine(config, self._emitter)
+        self.detection_engine = DetectionEngine(config, self._emitter)
         self._sessions = {}
 
         self._config.log_active_config()
@@ -332,13 +333,13 @@ class AgentShieldRuntime:
         )
         self._sessions[session_id] = context
 
-        self._engine.initialize_session(
+        self.detection_engine.initialize_session(
             session_id=session_id,
             agent_id=agent_id,
             original_task=original_task,
         )
         if tool_trust_overrides:
-            tracker = self._engine._provenance_tracker
+            tracker = self.detection_engine._provenance_tracker
             tracker_context = tracker._contexts.get(str(session_id))
             if tracker_context is not None:
                 tracker_context.tool_trust_overrides = {
@@ -390,13 +391,21 @@ class AgentShieldRuntime:
         from agentshield.interceptors.tool_interceptor import HookResult
 
         _ = session_id
-        engine = self._engine
+        engine = self.detection_engine
 
         def pre_call_hook(event: ToolCallEvent) -> HookResult:
+            session_ctx = self._sessions.get(event.session_id)
             try:
-                engine.process_event(event)
+                threats = engine.process_event(event)
+                if session_ctx is not None:
+                    session_ctx.event_count += 1
+                    if threats:
+                        session_ctx.threat_count += 1
                 return HookResult(block=False)
             except PolicyViolationError as exc:
+                if session_ctx is not None:
+                    session_ctx.event_count += 1
+                    session_ctx.threat_count += 1
                 return HookResult(
                     block=True,
                     reason=exc.message,
@@ -420,14 +429,22 @@ class AgentShieldRuntime:
         Returns:
             Callable that accepts a BaseEvent and processes it.
         """
-        engine = self._engine
+        engine = self.detection_engine
 
         def llm_event_hook(event: BaseEvent) -> None:
+            session_ctx = self._sessions.get(event.session_id)
             try:
-                engine.process_event(event)
+                threats = engine.process_event(event)
+                if session_ctx is not None:
+                    session_ctx.event_count += 1
+                    if threats:
+                        session_ctx.threat_count += 1
             except PolicyViolationError:
+                if session_ctx is not None:
+                    session_ctx.event_count += 1
+                    session_ctx.threat_count += 1
                 raise
-            except Exception as exc:
+            except (RuntimeError, ValueError, TypeError) as exc:
                 logger.error(
                     "DetectionEngine error on LLM event | session={} error={}",
                     str(session_id)[:8],
@@ -451,14 +468,22 @@ class AgentShieldRuntime:
         Returns:
             Callable that accepts a BaseEvent and processes it.
         """
-        engine = self._engine
+        engine = self.detection_engine
 
         def memory_event_hook(event: BaseEvent) -> None:
+            session_ctx = self._sessions.get(event.session_id)
             try:
-                engine.process_event(event)
+                threats = engine.process_event(event)
+                if session_ctx is not None:
+                    session_ctx.event_count += 1
+                    if threats:
+                        session_ctx.threat_count += 1
             except PolicyViolationError:
+                if session_ctx is not None:
+                    session_ctx.event_count += 1
+                    session_ctx.threat_count += 1
                 raise
-            except Exception as exc:
+            except (RuntimeError, ValueError, TypeError) as exc:
                 logger.error(
                     "DetectionEngine error on memory event | session={} error={}",
                     str(session_id)[:8],
@@ -480,12 +505,19 @@ class AgentShieldRuntime:
         Returns:
             Post-call hook callable for ToolInterceptor.
         """
-        engine = self._engine
+        engine = self.detection_engine
 
         def post_call_hook(event: ToolCallEvent) -> None:
+            session_ctx = self._sessions.get(event.session_id)
             try:
-                engine.process_event(event)
-            except Exception as exc:
+                threats = engine.process_event(event)
+                if session_ctx is not None:
+                    session_ctx.event_count += 1
+                    if threats:
+                        session_ctx.threat_count += 1
+            except (RuntimeError, ValueError, TypeError) as exc:
+                if session_ctx is not None:
+                    session_ctx.event_count += 1
                 logger.error(
                     "DetectionEngine error on tool complete | session={} error={}",
                     str(session_id)[:8],
@@ -508,6 +540,8 @@ class AgentShieldRuntime:
             try:
                 hook(event)
             except Exception as exc:
+                if isinstance(exc, PolicyViolationError):
+                    raise
                 logger.error(
                     "LLM event hook error | hook={} error={}",
                     getattr(hook, "__name__", "unknown"),
@@ -529,6 +563,8 @@ class AgentShieldRuntime:
             try:
                 hook(event)
             except Exception as exc:
+                if isinstance(exc, PolicyViolationError):
+                    raise
                 logger.error(
                     "Memory event hook error | hook={} error={}",
                     getattr(hook, "__name__", "unknown"),
@@ -583,7 +619,7 @@ class AgentShieldRuntime:
         )
 
         self._emitter.flush()
-        self._engine.close_session(context.session_id)
+        self.detection_engine.close_session(context.session_id)
         del self._sessions[context.session_id]
 
         logger.info(
@@ -605,41 +641,54 @@ class AgentShieldRuntime:
 
 def shield(
     agent: Any,
-    tools: list[BaseTool],
+    *,
+    tools: list[Any] | None = None,
     memory: BaseMemory | None = None,
+    policy: PolicyConfig | str | None = "monitor_only",
     config: AgentShieldConfig | None = None,
     original_task: str = "",
     agent_id: str = "default",
     framework: str = "langchain",
-    policy: str | None = None,
     tool_trust_overrides: dict[str, TrustLevel] | None = None,
 ) -> WrappedAgent:
-    """Wrap an agent with AgentShield protection in a compact API.
+    """Wrap an agent with AgentShield protection.
+
+    Creates an AgentShieldRuntime, attaches all configured
+    interceptors and detectors, optionally compiles and
+    attaches a policy, and returns a WrappedAgent ready to run.
 
     Args:
-        agent: LangChain agent executor to protect.
-        tools: List of BaseTool instances the agent uses.
-        memory: Optional BaseMemory instance to monitor.
-        config: Optional AgentShieldConfig.
+        agent: The LangChain agent or callable to protect.
+        tools: Optional list of LangChain tools to intercept.
+        memory: Optional LangChain BaseMemory to intercept.
+        policy: A PolicyConfig, built-in policy name
+            string, path to YAML file, or None to run
+            with no policy (detection only).
+        config: Optional AgentShieldConfig override.
+            Uses default config if not provided.
         original_task: Task string for this session.
         agent_id: Human-readable agent identifier.
         framework: Agent framework string.
-        policy: Policy name string reserved for Phase 5.
         tool_trust_overrides: Optional per-tool trust level
             overrides for provenance classification.
 
     Returns:
-        WrappedAgent ready to use.
+        WrappedAgent with full AgentShield protection.
     """
     runtime_config = config or AgentShieldConfig()
-
-    if policy is not None:
-        logger.info("Policy requested: {} - enforcement in Phase 5", policy)
-
     runtime = AgentShieldRuntime(runtime_config)
+
+    policy = policy or "monitor_only"
+
+    runtime.detection_engine.set_policy(policy)
+    logger.info(
+        "Policy attached via shield() | policy={}",
+        policy if isinstance(policy, str) else type(policy).__name__,
+    )
+
     return runtime.wrap(
         agent=agent,
-        tools=tools,
+        tools=cast(list[BaseTool], tools or []),
         memory=memory,
         original_task=original_task,
         agent_id=agent_id,

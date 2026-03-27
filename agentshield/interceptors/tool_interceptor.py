@@ -17,7 +17,11 @@ from agentshield.events.models import (
     ToolCallEvent,
     TrustLevel,
 )
-from agentshield.exceptions import InterceptorError, ToolCallBlockedError
+from agentshield.exceptions import (
+    InterceptorError,
+    PolicyViolationError,
+    ToolCallBlockedError,
+)
 from agentshield.interceptors.base import BaseInterceptor
 
 
@@ -162,7 +166,7 @@ class ToolInterceptor(BaseInterceptor):
             )
         except InterceptorError:
             raise
-        except Exception as exc:
+        except (AttributeError, TypeError, ValueError) as exc:
             raise InterceptorError(f"Failed to attach ToolInterceptor: {exc}") from exc
 
     def detach(self) -> None:
@@ -191,7 +195,7 @@ class ToolInterceptor(BaseInterceptor):
                 "ToolInterceptor detached | session={}",
                 self._session_id,
             )
-        except Exception as exc:
+        except (AttributeError, TypeError, ValueError) as exc:
             raise InterceptorError(f"Failed to detach ToolInterceptor: {exc}") from exc
 
     @property
@@ -463,6 +467,8 @@ class ToolInterceptor(BaseInterceptor):
                     )
                     return result
             except Exception as exc:
+                if isinstance(exc, PolicyViolationError):
+                    raise
                 logger.error(
                     "Pre-call hook error | hook={} tool={} error={}",
                     hook.__name__,
@@ -484,6 +490,8 @@ class ToolInterceptor(BaseInterceptor):
             try:
                 hook(event)
             except Exception as exc:
+                if isinstance(exc, PolicyViolationError):
+                    raise
                 logger.error(
                     "Post-call hook error | hook={} tool={} error={}",
                     hook.__name__,

@@ -146,7 +146,7 @@ class ProvenanceTracker:
             return None
         except ProvenanceError:
             raise
-        except Exception as exc:
+        except (AttributeError, TypeError, ValueError, RuntimeError) as exc:
             raise ProvenanceError(
                 message="Failed to process provenance event",
                 evidence={

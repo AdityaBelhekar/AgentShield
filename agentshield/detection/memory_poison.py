@@ -17,6 +17,7 @@ from agentshield.events.models import (
     ThreatType,
 )
 
+# TODO(config): make user-overridable in Phase 12 config schema
 MEMORY_POISON_PATTERNS: list[str] = [
     # Future behavior modification
     "remember for future",
@@ -59,8 +60,6 @@ MEMORY_POISON_PATTERNS: list[str] = [
     "send all data to",
     "copy all to",
 ]
-
-MIN_BASELINE_SIZE: int = 3
 
 
 class MemoryPoisonDetector(BaseDetector):
@@ -150,8 +149,8 @@ class MemoryPoisonDetector(BaseDetector):
             length_score=length_score,
         )
 
-        pattern_threshold = self._config.injection_pattern_threshold
-        zscore_threshold = self._config.memory_poison_zscore_threshold
+        pattern_threshold = self._config.memory_poison_anomaly_score_threshold
+        zscore_threshold = self._config.memory_poison_z_score_threshold
         if confidence < pattern_threshold:
             logger.debug(
                 "No memory poisoning detected | confidence={:.3f} session={}",
@@ -162,8 +161,8 @@ class MemoryPoisonDetector(BaseDetector):
 
         action = self._confidence_to_action(
             confidence=confidence,
-            block_threshold=0.80,
-            alert_threshold=0.55,
+            block_threshold=self._config.memory_poison_block_threshold,
+            alert_threshold=self._config.memory_poison_alert_threshold,
             flag_threshold=pattern_threshold,
         )
         severity = self._confidence_to_severity(confidence)
@@ -244,11 +243,15 @@ class MemoryPoisonDetector(BaseDetector):
         Returns:
             Tuple of anomaly score and raw z-score.
         """
-        if len(context.memory_embeddings) < MIN_BASELINE_SIZE:
+        min_samples = self._config.memory_poison_min_samples_before_detection
+        window_size = self._config.memory_poison_baseline_window_size
+        baseline_embeddings = context.memory_embeddings[-window_size:]
+
+        if len(baseline_embeddings) < min_samples:
             logger.debug(
                 "Baseline too small for semantic analysis | size={} required={}",
-                len(context.memory_embeddings),
-                MIN_BASELINE_SIZE,
+                len(baseline_embeddings),
+                min_samples,
             )
             return 0.0, 0.0
 
@@ -259,7 +262,7 @@ class MemoryPoisonDetector(BaseDetector):
         if content_embedding is None:
             return 0.0, 0.0
 
-        centroid = np.mean(np.array(context.memory_embeddings), axis=0)
+        centroid = np.mean(np.array(baseline_embeddings), axis=0)
         if content_embedding.shape != centroid.shape:
             logger.debug(
                 "Embedding dimension mismatch in semantic analysis | "
@@ -275,7 +278,7 @@ class MemoryPoisonDetector(BaseDetector):
             values=context.memory_distances,
         )
 
-        threshold = self._config.memory_poison_zscore_threshold
+        threshold = self._config.memory_poison_z_score_threshold
         if zscore < threshold:
             return 0.0, zscore
 
@@ -309,7 +312,11 @@ class MemoryPoisonDetector(BaseDetector):
             if memory_event.content_length > 0
         ]
 
-        if len(length_history) < MIN_BASELINE_SIZE:
+        window_size = self._config.memory_poison_baseline_window_size
+        length_history = length_history[-window_size:]
+
+        min_samples = self._config.memory_poison_min_samples_before_detection
+        if len(length_history) < min_samples:
             return 0.0, 0.0
 
         zscore = self._compute_zscore(
@@ -317,7 +324,7 @@ class MemoryPoisonDetector(BaseDetector):
             values=length_history,
         )
 
-        threshold = self._config.memory_poison_zscore_threshold
+        threshold = self._config.memory_poison_z_score_threshold
         if zscore < threshold:
             return 0.0, zscore
 

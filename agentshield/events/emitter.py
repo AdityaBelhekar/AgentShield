@@ -6,10 +6,12 @@ from pathlib import Path
 import redis
 import redis.asyncio as aioredis
 from loguru import logger
+from redis.exceptions import RedisError
 
 from agentshield.config import AgentShieldConfig
 from agentshield.events.models import BaseEvent
 from agentshield.exceptions import EventEmissionError, RedisConnectionError
+from agentshield.scrubber import EventScrubber
 
 
 class EventEmitter:
@@ -36,6 +38,7 @@ class EventEmitter:
     _redis_client: redis.Redis[bytes] | None
     _async_redis_client: aioredis.Redis[bytes] | None
     _audit_log_path: Path
+    _scrubber: EventScrubber
     _emit_count: int
     _fail_count: int
 
@@ -49,6 +52,7 @@ class EventEmitter:
         self._redis_client = None
         self._async_redis_client = None
         self._audit_log_path = Path(config.audit_log_path)
+        self._scrubber = EventScrubber()
         self._emit_count = 0
         self._fail_count = 0
 
@@ -131,7 +135,7 @@ class EventEmitter:
                     event.id,
                     event.event_type,
                 )
-            except Exception as exc:
+            except (RedisError, OSError, RuntimeError) as exc:
                 self._fail_count += 1
                 logger.warning(
                     "Async Redis publish failed | event_id={} error={}",
@@ -143,7 +147,7 @@ class EventEmitter:
         except (EventEmissionError, RedisConnectionError) as exc:
             self._fail_count += 1
             logger.error("Async emit failed with AgentShield exception | error={}", exc)
-        except Exception as exc:
+        except (OSError, RuntimeError, ValueError, TypeError) as exc:
             self._fail_count += 1
             logger.error("Unexpected async emit failure | error={}", exc)
 
@@ -177,7 +181,7 @@ class EventEmitter:
                     len(events),
                     self._config.event_channel,
                 )
-            except Exception as exc:
+            except (RedisError, OSError, RuntimeError) as exc:
                 self._fail_count += 1
                 logger.warning(
                     "Batch Redis pipeline failed | count={} error={}",
@@ -192,7 +196,7 @@ class EventEmitter:
         except (EventEmissionError, RedisConnectionError) as exc:
             self._fail_count += 1
             logger.error("Batch emit failed with AgentShield exception | error={}", exc)
-        except Exception as exc:
+        except (OSError, RuntimeError, ValueError, TypeError) as exc:
             self._fail_count += 1
             logger.error("Unexpected batch emit failure | error={}", exc)
 
@@ -219,7 +223,7 @@ class EventEmitter:
                 self._emit_count,
                 self._fail_count,
             )
-        except Exception as exc:
+        except (OSError, RuntimeError) as exc:
             logger.error("Error during EventEmitter flush | error={}", exc)
 
     def stats(self) -> dict[str, int]:
@@ -256,7 +260,7 @@ class EventEmitter:
                     "Redis connection established | url={}",
                     self._config.redis_url,
                 )
-            except Exception as exc:
+            except (RedisError, OSError, ValueError) as exc:
                 raise RedisConnectionError(
                     f"Failed to connect to Redis at {self._config.redis_url}: {exc}"
                 ) from exc
@@ -291,7 +295,7 @@ class EventEmitter:
         """
         try:
             return event.model_dump_json()
-        except Exception as exc:
+        except (TypeError, ValueError) as exc:
             logger.error(
                 "Event serialization failed | event_id={} type={} error={}",
                 getattr(event, "id", "unknown"),
@@ -310,14 +314,15 @@ class EventEmitter:
         """
         try:
             self._audit_log_path.parent.mkdir(parents=True, exist_ok=True)
-            serialized = self._serialize(event)
+            scrubbed_event = self._scrubber.scrub(event)
+            serialized = self._serialize(scrubbed_event)
             if serialized is None:
                 self._fail_count += 1
                 return
             with self._audit_log_path.open("a", encoding="utf-8") as file_handle:
                 file_handle.write(serialized)
                 file_handle.write("\n")
-        except Exception as exc:
+        except (OSError, ValueError) as exc:
             self._fail_count += 1
             logger.error(
                 "Audit log write failed | path={} event_id={} error={}",
@@ -361,7 +366,7 @@ class EventEmitter:
                         channel,
                     )
                 return True
-            except Exception as exc:
+            except (RedisError, OSError, TimeoutError) as exc:
                 logger.warning(
                     "Redis publish attempt {}/{} failed | channel={} error={}",
                     attempt + 1,
