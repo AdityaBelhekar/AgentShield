@@ -208,7 +208,7 @@ class PolicyCompiler:
             raise ConfigurationError(f"Policy file not found: {path}")
 
         try:
-            import yaml  # type: ignore[import-untyped]
+            import yaml
         except ImportError as exc:
             raise ConfigurationError(
                 "PyYAML is required to load policy YAML files. "

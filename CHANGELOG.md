@@ -114,6 +114,20 @@ Versions follow [Semantic Versioning](https://semver.org).
 - BLOCK action sets should_block=True for runtime
 - AND logic across conditions in a rule
 
+### Phase 5C — Policy Wired into Runtime
+- `DetectionEngine.set_policy()`: attach a compiled policy
+	at runtime
+- Policy evaluation runs after correlation, before emit
+- ALLOW action suppresses ThreatEvent emission entirely
+- BLOCK action overrides correlation result unconditionally
+- ALERT escalates FLAG decisions from correlation
+- `shield()` accepts `policy=` parameter (PolicyConfig,
+	str, or None)
+- Issue 4 fixed: ROLLING_WINDOW_SIZE, MIN_PROMPTS_BEFORE_BLOCK,
+	memory z-score threshold moved to AgentShieldConfig
+- Issue 5 fixed: session event_count and threat_count now
+	increment correctly in DetectionEngine
+
 ### Phase 1A - Event Models
 - `EventType` enum: 14 event categories
 - `SeverityLevel` enum: 5 severity levels

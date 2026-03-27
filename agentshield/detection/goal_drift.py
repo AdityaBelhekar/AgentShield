@@ -19,9 +19,6 @@ from agentshield.events.models import (
     ThreatType,
 )
 
-MIN_PROMPTS_BEFORE_BLOCK: int = 2
-ROLLING_WINDOW_SIZE: int = 3
-
 
 class GoalDriftDetector(BaseDetector):
     """Detect semantic drift between prompts and the original task.
@@ -40,13 +37,13 @@ class GoalDriftDetector(BaseDetector):
       1.0 = completely unrelated meaning (maximum drift)
 
     Smoothing:
-      Uses rolling average of last ROLLING_WINDOW_SIZE prompt
+    Uses rolling average of last rolling_window_size prompt
       distances to avoid triggering on a single outlier prompt.
       Raw drift score and rolling average are both considered;
       whichever is higher drives the final decision.
 
     Early session protection:
-      Does not BLOCK on fewer than MIN_PROMPTS_BEFORE_BLOCK
+    Does not BLOCK on fewer than min_prompts_before_block
       prompts. The first prompt often contains setup context
       that looks unrelated but is not an attack.
 
@@ -236,7 +233,7 @@ class GoalDriftDetector(BaseDetector):
         """Determine action and severity from drift score.
 
         Applies early session protection by withholding BLOCK
-        until MIN_PROMPTS_BEFORE_BLOCK prompts are observed.
+        until min_prompts_before_block prompts are observed.
 
         Args:
             effective_score: Max of raw drift and rolling average.
@@ -248,7 +245,7 @@ class GoalDriftDetector(BaseDetector):
             Tuple of recommended action and severity.
         """
         if effective_score >= block_threshold:
-            if prompt_count >= MIN_PROMPTS_BEFORE_BLOCK:
+            if prompt_count >= self._config.min_prompts_before_block:
                 return RecommendedAction.BLOCK, SeverityLevel.HIGH
             return RecommendedAction.ALERT, SeverityLevel.HIGH
 
@@ -282,15 +279,22 @@ class GoalDriftDetector(BaseDetector):
             session_key: Session identifier string.
 
         Returns:
-            Mean of the last ROLLING_WINDOW_SIZE scores,
+            Mean of the last rolling_window_size scores,
             or 0.0 when no history exists.
         """
         history = self._prompt_distances.get(session_key, [])
         if not history:
             return 0.0
 
-        window = history[-ROLLING_WINDOW_SIZE:]
-        return float(np.mean(window))
+        window_size = min(self._config.rolling_window_size, len(history))
+        window = history[-window_size:]
+        rolling_average = float(np.mean(window))
+
+        recent_size = min(self._config.min_prompts_before_block, len(history))
+        recent_window = history[-recent_size:]
+        recent_average = float(np.mean(recent_window))
+
+        return max(rolling_average, recent_average)
 
     def _build_explanation(
         self,
@@ -328,19 +332,19 @@ class GoalDriftDetector(BaseDetector):
         if rolling_avg > drift_score * 0.8:
             parts.append(
                 "Sustained drift detected with rolling average "
-                f"{rolling_avg:.0%} over last {ROLLING_WINDOW_SIZE} prompts."
+                f"{rolling_avg:.0%} over last {self._config.rolling_window_size} prompts."
             )
         else:
             parts.append(f"Single prompt drift of {drift_score:.0%}.")
 
         if (
-            prompt_count < MIN_PROMPTS_BEFORE_BLOCK
+            prompt_count < self._config.min_prompts_before_block
             and effective_score >= self._config.goal_drift_block_threshold
         ):
             parts.append(
                 "Block withheld because only "
                 f"{prompt_count} prompt(s) seen so far; minimum "
-                f"{MIN_PROMPTS_BEFORE_BLOCK} required."
+                f"{self._config.min_prompts_before_block} required."
             )
 
         return " ".join(parts)
