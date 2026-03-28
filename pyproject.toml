@@ -3,7 +3,7 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "agentshield"
+name = "agent-shield-sdk"
 version = "0.1.0"
 description = "Production-grade security runtime for AI agents"
 authors = [
@@ -40,7 +40,7 @@ dependencies = [
   "faiss-cpu>=1.8.0",
 
   # Storage / messaging
-  "redis>=5.0.0",
+  "redis[asyncio]>=5.0.0",
 
   # API
   "fastapi>=0.111.0",
