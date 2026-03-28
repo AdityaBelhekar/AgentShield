@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
 from backend.dependencies import get_config, get_event_store, get_redis_bridge
-from backend.routers import events, sessions, ws
+from backend.routers import demo, events, sessions, ws
 
 
 @asynccontextmanager
@@ -69,6 +69,7 @@ def create_app() -> FastAPI:
     app.include_router(events.router)
     app.include_router(sessions.router)
     app.include_router(ws.router)
+    app.include_router(demo.router)
     return app
 
 

@@ -1,52 +1,25 @@
-version: "3.9"
-
 services:
   redis:
     image: redis:7-alpine
-    container_name: agentshield-redis
     ports:
       - "6379:6379"
-    volumes:
-      - redis_data:/data
-    command: redis-server --appendonly yes
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
+      interval: 5s
+      timeout: 3s
       retries: 5
-    restart: unless-stopped
 
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: agentshield-backend
+    build: .
     ports:
       - "8000:8000"
+    environment:
+      AGENTSHIELD_REDIS_URL: redis://redis:6379
+      AGENTSHIELD_HOST: 0.0.0.0
+      AGENTSHIELD_PORT: "8000"
+      AGENTSHIELD_LOG_LEVEL: INFO
+      AGENTSHIELD_CORS_ORIGINS: '["http://localhost:3000"]'
     depends_on:
       redis:
         condition: service_healthy
-    env_file: .env
-    volumes:
-      - ./logs:/app/logs
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
-      interval: 15s
-      timeout: 5s
-      retries: 3
-
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: agentshield-frontend
-    ports:
-      - "5173:5173"
-    depends_on:
-      - backend
-    restart: unless-stopped
-
-volumes:
-  redis_data:
-    driver: local
+    restart: on-failure

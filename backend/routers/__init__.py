@@ -1,5 +1,5 @@
-"""AgentShield backend routers - events, sessions, websocket."""
+"""AgentShield backend routers - demo, events, sessions, websocket."""
 
-from backend.routers import events, sessions, ws
+from backend.routers import demo, events, sessions, ws
 
-__all__ = ["events", "sessions", "ws"]
+__all__ = ["demo", "events", "sessions", "ws"]
