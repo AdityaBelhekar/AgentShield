@@ -133,11 +133,12 @@ export interface EventsResponse {
 
 // -- WebSocket message ---------------------------------------------------
 
-export type WSMessageType = "event" | "connected" | "ping" | "error";
+export type WSMessageType = "event" | "connected" | "history" | "ping" | "error";
 
 export interface WSMessage {
   type: WSMessageType;
-  data?: AnyEvent;
+  data?: AnyEvent | Record<string, unknown>;
+  events?: Array<AnyEvent | Record<string, unknown>>;
   message?: string;
   timestamp?: string;
 }
