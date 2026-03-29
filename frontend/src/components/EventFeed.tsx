@@ -1,1 +1,0 @@
-// AgentShield Security Console — live event feed

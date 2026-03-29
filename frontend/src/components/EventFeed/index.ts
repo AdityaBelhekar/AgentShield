@@ -1,0 +1,1 @@
+export { EventFeed } from "./EventFeed";

@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import { AgentGraph } from "./components/AgentGraph";
 import { AlertPanel } from "./components/AlertPanel";
+import { EventFeed } from "./components/EventFeed";
+import { ForensicTrace } from "./components/ForensicTrace";
 import { wsManager } from "./services/wsManager";
 import { useShieldStore } from "./store/useShieldStore";
 
@@ -29,14 +31,22 @@ export default function App(): JSX.Element {
         </div>
       </header>
 
-      <div className="flex flex-1 gap-0 overflow-hidden">
-        <div className="flex-1 p-4">
-          <AgentGraph height="calc(100vh - 112px)" />
+      <div className="relative flex flex-1 overflow-hidden">
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <div className="flex-1 overflow-hidden p-4">
+            <AgentGraph height="100%" />
+          </div>
+          <div className="flex-1 overflow-hidden border-t border-[#1f2937]">
+            <EventFeed maxHeight="100%" />
+          </div>
         </div>
-        <div className="w-[380px] border-l border-shield-border p-4">
-          <AlertPanel maxHeight="calc(100vh - 112px)" />
+
+        <div className="w-[380px] overflow-hidden border-l border-[#1f2937]">
+          <AlertPanel maxHeight="100%" />
         </div>
       </div>
+
+      <ForensicTrace />
     </div>
   );
 }
