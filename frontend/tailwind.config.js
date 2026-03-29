@@ -1,1 +1,0 @@
-// AgentShield Security Console — Tailwind configuration
