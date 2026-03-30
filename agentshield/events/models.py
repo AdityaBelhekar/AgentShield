@@ -507,7 +507,11 @@ class AuditLog(BaseModel):
     events: list[BaseEvent] = Field(default_factory=list)
     policy_snapshot: dict[str, Any] = Field(default_factory=dict)
     chain_hash: str = Field(
-        default="", description="Cryptographic audit chain hash. Phase 8."
+        default="",
+        description=(
+            "SHA-256 hash linking this log to the audit chain. "
+            "Populated by AuditChainStore. Empty string before Phase 8."
+        ),
     )
 
 

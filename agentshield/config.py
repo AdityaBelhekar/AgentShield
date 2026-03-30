@@ -14,6 +14,9 @@ Exception: redis_url and embedding_* use their own prefixes.
 
 from __future__ import annotations
 
+from importlib.metadata import PackageNotFoundError, version
+from pathlib import Path
+
 from loguru import logger
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -61,6 +64,9 @@ class AgentShieldConfig(BaseSettings):
 
         event_channel: Redis pub/sub channel name.
         max_event_history: Max events kept in memory by backend.
+        audit_chain_enabled: Whether cryptographic audit chaining is enabled.
+        audit_chain_path: Optional JSONL path for chain persistence.
+        audit_chain_max_memory_entries: Max chain entries kept in memory.
     """
 
     model_config = SettingsConfigDict(
@@ -104,6 +110,18 @@ class AgentShieldConfig(BaseSettings):
     # ── Event System ───────────────────────────────────────────
     event_channel: str = "agentshield:events"
     max_event_history: int = 10000
+    audit_chain_enabled: bool = Field(
+        default=True,
+        description="Enable cryptographic audit chain",
+    )
+    audit_chain_path: Path | None = Field(
+        default=None,
+        description="JSONL file path for audit chain persistence",
+    )
+    audit_chain_max_memory_entries: int = Field(
+        default=10_000,
+        description="Max in-memory chain entries before oldest are dropped",
+    )
 
     # Detection tuning - Issue 4 fix (moved from hardcoded)
     rolling_window_size: int = Field(
@@ -315,6 +333,7 @@ class AgentShieldConfig(BaseSettings):
         "tool_chain_repeated_tool_threshold",
         "memory_poison_baseline_window_size",
         "memory_poison_min_samples_before_detection",
+        "audit_chain_max_memory_entries",
     )
     @classmethod
     def validate_positive_int_thresholds(cls, v: int) -> int:
@@ -351,6 +370,18 @@ class AgentShieldConfig(BaseSettings):
                 f"({self.goal_drift_block_threshold})"
             )
         return self
+
+    @property
+    def agentshield_version(self) -> str:
+        """Return the installed AgentShield package version.
+
+        Returns:
+            Version string from package metadata when available.
+        """
+        try:
+            return version("agent-shield-sdk")
+        except PackageNotFoundError:
+            return "unknown"
 
     def log_active_config(self) -> None:
         """

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import redis
 import redis.asyncio as aioredis
@@ -12,6 +13,9 @@ from agentshield.config import AgentShieldConfig
 from agentshield.events.models import BaseEvent
 from agentshield.exceptions import EventEmissionError, RedisConnectionError
 from agentshield.scrubber import EventScrubber
+
+if TYPE_CHECKING:
+    from agentshield.audit.chain import AuditChainStore
 
 
 class EventEmitter:
@@ -41,12 +45,18 @@ class EventEmitter:
     _scrubber: EventScrubber
     _emit_count: int
     _fail_count: int
+    _audit_chain: AuditChainStore | None
 
-    def __init__(self, config: AgentShieldConfig) -> None:
+    def __init__(
+        self,
+        config: AgentShieldConfig,
+        audit_chain: AuditChainStore | None = None,
+    ) -> None:
         """Initialize the EventEmitter with SDK configuration.
 
         Args:
             config: AgentShield configuration for Redis and audit logging.
+            audit_chain: Optional audit chain store for tamper-evident logging.
         """
         self._config = config
         self._redis_client = None
@@ -55,6 +65,7 @@ class EventEmitter:
         self._scrubber = EventScrubber()
         self._emit_count = 0
         self._fail_count = 0
+        self._audit_chain = audit_chain
 
         logger.info(
             "EventEmitter initialized | channel={} log_path={}",
@@ -95,6 +106,7 @@ class EventEmitter:
                 )
 
             self._write_audit_log(event)
+            self._append_audit_chain_sync(event)
 
             logger.debug(
                 "Event emitted | id={} type={} severity={} session={}",
@@ -144,6 +156,7 @@ class EventEmitter:
                 )
 
             self._write_audit_log(event)
+            await self._append_audit_chain_async(event)
         except (EventEmissionError, RedisConnectionError) as exc:
             self._fail_count += 1
             logger.error("Async emit failed with AgentShield exception | error={}", exc)
@@ -193,6 +206,7 @@ class EventEmitter:
                 if message is None:
                     self._fail_count += 1
                 self._write_audit_log(event)
+                self._append_audit_chain_sync(event)
         except (EventEmissionError, RedisConnectionError) as exc:
             self._fail_count += 1
             logger.error("Batch emit failed with AgentShield exception | error={}", exc)
@@ -330,6 +344,34 @@ class EventEmitter:
                 getattr(event, "id", "unknown"),
                 exc,
             )
+
+    def _append_audit_chain_sync(self, event: BaseEvent) -> None:
+        """Append an event to the configured audit chain using sync path.
+
+        Args:
+            event: Event to append to the audit chain.
+        """
+        if self._audit_chain is None or not self._config.audit_chain_enabled:
+            return
+
+        try:
+            self._audit_chain.append_sync(event)
+        except Exception as exc:  # pragma: no cover - defensive guard
+            logger.error("Audit chain append failed: {}", exc)
+
+    async def _append_audit_chain_async(self, event: BaseEvent) -> None:
+        """Append an event to the configured audit chain using async path.
+
+        Args:
+            event: Event to append to the audit chain.
+        """
+        if self._audit_chain is None or not self._config.audit_chain_enabled:
+            return
+
+        try:
+            await self._audit_chain.append(event)
+        except Exception as exc:  # pragma: no cover - defensive guard
+            logger.error("Audit chain append failed: {}", exc)
 
     def _emit_with_retry(
         self,

@@ -13,6 +13,10 @@ GitHub: https://github.com/AdityaBelhekar/AgentShield
 Docs:   https://agentshield.dev/docs
 """
 
+from agentshield.audit import (
+    AuditChainStore,
+    ChainedAuditEntry,
+)
 from agentshield.canary import CanarySystem
 from agentshield.config import AgentShieldConfig
 from agentshield.detection import (
@@ -82,6 +86,7 @@ __all__ = [
     "__version__",
     # Config
     "AgentShieldConfig",
+    "AuditChainStore",
     "CanarySystem",
     "DNASystem",
     "AgentBaseline",
@@ -103,6 +108,7 @@ __all__ = [
     "ThreatType",
     "ToolCallEvent",
     "TrustLevel",
+    "ChainedAuditEntry",
     "deserialize_event",
     # Base exceptions
     "AgentShieldError",
