@@ -14,8 +14,11 @@ Docs:   https://agentshield.dev/docs
 """
 
 from agentshield.audit import (
+    AuditChainExporter,
     AuditChainStore,
+    AuditChainVerifier,
     ChainedAuditEntry,
+    VerificationResult,
 )
 from agentshield.canary import CanarySystem
 from agentshield.config import AgentShieldConfig
@@ -86,7 +89,9 @@ __all__ = [
     "__version__",
     # Config
     "AgentShieldConfig",
+    "AuditChainExporter",
     "AuditChainStore",
+    "AuditChainVerifier",
     "CanarySystem",
     "DNASystem",
     "AgentBaseline",
@@ -109,6 +114,7 @@ __all__ = [
     "ToolCallEvent",
     "TrustLevel",
     "ChainedAuditEntry",
+    "VerificationResult",
     "deserialize_event",
     # Base exceptions
     "AgentShieldError",

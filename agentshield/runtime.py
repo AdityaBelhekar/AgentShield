@@ -5,11 +5,18 @@ import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any, Literal, Protocol, cast
 
 from langchain_core.tools import BaseTool
 from loguru import logger
 
+from agentshield.audit import (
+    AuditChainExporter,
+    AuditChainStore,
+    AuditChainVerifier,
+    VerificationResult,
+)
 from agentshield.config import AgentShieldConfig
 from agentshield.detection.engine import DetectionEngine
 from agentshield.events.emitter import EventEmitter
@@ -21,7 +28,11 @@ from agentshield.events.models import (
     ToolCallEvent,
     TrustLevel,
 )
-from agentshield.exceptions import InterceptorError, PolicyViolationError
+from agentshield.exceptions import (
+    AuditChainError,
+    InterceptorError,
+    PolicyViolationError,
+)
 from agentshield.interceptors.llm_interceptor import LLMInterceptor
 from agentshield.interceptors.memory_interceptor import MemoryInterceptor
 from agentshield.interceptors.tool_interceptor import ToolInterceptor
@@ -227,6 +238,7 @@ class AgentShieldRuntime:
 
     _config: AgentShieldConfig
     _emitter: EventEmitter
+    _audit_chain: AuditChainStore | None
     detection_engine: DetectionEngine
     _sessions: dict[uuid.UUID, _SessionContext]
 
@@ -237,7 +249,15 @@ class AgentShieldRuntime:
             config: AgentShieldConfig with all runtime settings.
         """
         self._config = config
-        self._emitter = EventEmitter(config)
+        if config.audit_chain_enabled:
+            self._audit_chain = AuditChainStore(
+                persist_path=config.audit_chain_path,
+                max_memory_entries=config.audit_chain_max_memory_entries,
+            )
+        else:
+            self._audit_chain = None
+
+        self._emitter = EventEmitter(config, audit_chain=self._audit_chain)
         self.detection_engine = DetectionEngine(config, self._emitter)
         self._sessions = {}
 
@@ -637,6 +657,54 @@ class AgentShieldRuntime:
             Number of active sessions.
         """
         return len(self._sessions)
+
+    @property
+    def audit_chain(self) -> AuditChainStore | None:
+        """Return the active audit chain store or None if disabled."""
+        return self._audit_chain
+
+    def verify_audit_chain(self) -> VerificationResult | None:
+        """Verify the currently configured audit chain.
+
+        Returns:
+            VerificationResult when enabled, else None.
+        """
+        if self._audit_chain is None:
+            return None
+
+        verifier = AuditChainVerifier()
+        return verifier.verify(self._audit_chain)
+
+    def export_audit_chain(self, output_path: Path, *, format: str = "jsonl") -> None:
+        """Export the current audit chain to file.
+
+        Args:
+            output_path: Path for export output.
+            format: Export format, either "jsonl" or "json".
+
+        Raises:
+            AuditChainError: If chain is disabled, format is invalid,
+                or export fails.
+        """
+        if self._audit_chain is None:
+            raise AuditChainError(
+                "Audit chain export requested but audit chain is disabled"
+            )
+
+        exporter = AuditChainExporter(config=self._config)
+        normalized_format = format.lower()
+
+        if normalized_format == "jsonl":
+            exporter.export_jsonl(self._audit_chain, output_path)
+            return
+
+        if normalized_format == "json":
+            exporter.export_json_report(self._audit_chain, output_path)
+            return
+
+        raise AuditChainError(
+            "Unsupported audit chain export format. Use 'jsonl' or 'json'."
+        )
 
 
 def shield(
