@@ -11,7 +11,11 @@ from redis.exceptions import RedisError
 
 from agentshield.config import AgentShieldConfig
 from agentshield.events.models import BaseEvent
-from agentshield.exceptions import EventEmissionError, RedisConnectionError
+from agentshield.exceptions import (
+    AuditChainError,
+    EventEmissionError,
+    RedisConnectionError,
+)
 from agentshield.scrubber import EventScrubber
 
 if TYPE_CHECKING:
@@ -106,7 +110,7 @@ class EventEmitter:
                 )
 
             self._write_audit_log(event)
-            self._append_audit_chain_sync(event)
+            self._emit_to_chain(event)
 
             logger.debug(
                 "Event emitted | id={} type={} severity={} session={}",
@@ -156,7 +160,7 @@ class EventEmitter:
                 )
 
             self._write_audit_log(event)
-            await self._append_audit_chain_async(event)
+            await self._emit_to_chain_async(event)
         except (EventEmissionError, RedisConnectionError) as exc:
             self._fail_count += 1
             logger.error("Async emit failed with AgentShield exception | error={}", exc)
@@ -206,7 +210,7 @@ class EventEmitter:
                 if message is None:
                     self._fail_count += 1
                 self._write_audit_log(event)
-                self._append_audit_chain_sync(event)
+                self._emit_to_chain(event)
         except (EventEmissionError, RedisConnectionError) as exc:
             self._fail_count += 1
             logger.error("Batch emit failed with AgentShield exception | error={}", exc)
@@ -345,8 +349,8 @@ class EventEmitter:
                 exc,
             )
 
-    def _append_audit_chain_sync(self, event: BaseEvent) -> None:
-        """Append an event to the configured audit chain using sync path.
+    def _emit_to_chain(self, event: BaseEvent) -> None:
+        """Append an event to the configured audit chain.
 
         Args:
             event: Event to append to the audit chain.
@@ -355,23 +359,34 @@ class EventEmitter:
             return
 
         try:
-            self._audit_chain.append_sync(event)
-        except Exception as exc:  # pragma: no cover - defensive guard
-            logger.error("Audit chain append failed: {}", exc)
+            # AUDIT-FIX: Route chain appends through append_entry() per Phase 8 wiring.
+            self._audit_chain.append_entry(event)
+        except AuditChainError as exc:
+            logger.error("Audit chain append failed | error={}", exc)
+
+    async def _emit_to_chain_async(self, event: BaseEvent) -> None:
+        """Append an event to the configured audit chain asynchronously.
+
+        Args:
+            event: Event to append to the audit chain.
+        """
+        if self._audit_chain is None or not self._config.audit_chain_enabled:
+            return
+
+        try:
+            await self._audit_chain.append_entry_async(event)
+        except AuditChainError as exc:
+            logger.error("Audit chain append failed | error={}", exc)
+
+    def _append_audit_chain_sync(self, event: BaseEvent) -> None:
+        """Backward-compatible wrapper for synchronous chain append."""
+
+        self._emit_to_chain(event)
 
     async def _append_audit_chain_async(self, event: BaseEvent) -> None:
-        """Append an event to the configured audit chain using async path.
+        """Backward-compatible wrapper for asynchronous chain append."""
 
-        Args:
-            event: Event to append to the audit chain.
-        """
-        if self._audit_chain is None or not self._config.audit_chain_enabled:
-            return
-
-        try:
-            await self._audit_chain.append(event)
-        except Exception as exc:  # pragma: no cover - defensive guard
-            logger.error("Audit chain append failed: {}", exc)
+        await self._emit_to_chain_async(event)
 
     def _emit_with_retry(
         self,

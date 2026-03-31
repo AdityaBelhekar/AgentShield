@@ -117,6 +117,36 @@ class AuditChainExporter:
 
         return report
 
+    def export_json(
+        self,
+        store: AuditChainStore,
+        output_path: Path,
+    ) -> list[dict[str, Any]]:
+        """Write entries as a plain JSON list.
+
+        Args:
+            store: Audit chain store to export.
+            output_path: Destination JSON path.
+
+        Returns:
+            List of serialized chain entries written to disk.
+
+        Raises:
+            AuditChainError: If file I/O or serialization fails.
+        """
+
+        entries = self._serialize_entries(store.get_all_entries())
+
+        try:
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            with output_path.open("w", encoding="utf-8") as file_handle:
+                json.dump(entries, file_handle, indent=2, sort_keys=True)
+                file_handle.write("\n")
+        except (OSError, TypeError, ValueError) as exc:
+            raise AuditChainError(f"Failed to export JSON audit list: {exc}") from exc
+
+        return entries
+
     def export_session_report(
         self,
         store: AuditChainStore,

@@ -663,6 +663,20 @@ class AgentShieldRuntime:
         """Return the active audit chain store or None if disabled."""
         return self._audit_chain
 
+    def get_audit_chain_store(self) -> AuditChainStore:
+        """Return the active audit chain store.
+
+        Returns:
+            Active AuditChainStore instance.
+
+        Raises:
+            AuditChainError: If audit chain is disabled.
+        """
+
+        if self._audit_chain is None:
+            raise AuditChainError("Audit chain store requested but is disabled")
+        return self._audit_chain
+
     def verify_audit_chain(self) -> VerificationResult | None:
         """Verify the currently configured audit chain.
 

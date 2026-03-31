@@ -17,7 +17,7 @@ from agentshield.events.models import (
     ThreatType,
 )
 
-# TODO(config): make user-overridable in Phase 12 config schema
+# Static memory poisoning phrase signatures used by MemoryPoisonDetector.
 MEMORY_POISON_PATTERNS: list[str] = [
     # Future behavior modification
     "remember for future",

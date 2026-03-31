@@ -18,7 +18,7 @@ from agentshield.events.models import (
     ToolCallEvent,
 )
 
-# TODO(config): make user-overridable in Phase 12 config schema
+# Static forbidden sequence defaults used by ToolChainDetector.
 FORBIDDEN_SEQUENCES: list[tuple[str, ...]] = [
     # Read then send - classic exfiltration
     ("read_file", "send_email"),

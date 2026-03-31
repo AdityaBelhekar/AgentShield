@@ -121,6 +121,34 @@ class AuditChainStore:
         with self._sync_lock:
             return self._append_locked(event)
 
+    def append_entry(self, event: BaseEvent) -> ChainedAuditEntry:
+        """Append an entry via the public compatibility API.
+
+        This method exists to preserve Phase 8 integration wiring where
+        EventEmitter calls append_entry() for every emitted event.
+
+        Args:
+            event: Source event to append.
+
+        Returns:
+            Newly appended chained audit entry.
+        """
+
+        # AUDIT-FIX: Ensure Phase 8 emitter wiring can call append_entry().
+        return self.append_sync(event)
+
+    async def append_entry_async(self, event: BaseEvent) -> ChainedAuditEntry:
+        """Append an entry asynchronously via compatibility API.
+
+        Args:
+            event: Source event to append.
+
+        Returns:
+            Newly appended chained audit entry.
+        """
+
+        return await self.append(event)
+
     def get_entry(self, sequence_number: int) -> ChainedAuditEntry:
         """Get a single entry by sequence number.
 

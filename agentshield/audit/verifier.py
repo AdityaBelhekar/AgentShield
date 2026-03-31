@@ -62,6 +62,18 @@ class AuditChainVerifier:
             )
             return result
 
+    def verify_chain(self, store: AuditChainStore) -> bool:
+        """Return boolean integrity status for a full chain verification.
+
+        Args:
+            store: Audit chain store to verify.
+
+        Returns:
+            True when the chain verifies successfully, otherwise False.
+        """
+
+        return self.verify(store).is_valid
+
     def verify_range(
         self,
         store: AuditChainStore,
