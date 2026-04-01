@@ -30,7 +30,11 @@ app.add_typer(
 
 
 def version_callback(value: bool) -> None:
-    """Show AgentShield package version and exit."""
+    """Show AgentShield package version and exit.
+
+    Args:
+        value: Whether the version option was provided.
+    """
     if value:
         from agentshield import __version__
 
@@ -51,9 +55,17 @@ def main(
         ),
     ] = False,
 ) -> None:
-    """AgentShield — trust and observability layer for AI agents."""
+    """AgentShield CLI root callback.
+
+    Args:
+        version: Whether to print version information and exit.
+    """
 
 
 def cli() -> None:
-    """Invoke the AgentShield CLI."""
+    """Invoke the AgentShield CLI.
+
+    Returns:
+        None.
+    """
     app()

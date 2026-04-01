@@ -34,7 +34,12 @@ def generate_cert(
         ),
     ] = None,
 ) -> None:
-    """Generate a security certification badge from a red team report. (Phase 9C)"""
+    """Generate a security certification badge from a red team report.
+
+    Args:
+        report: Path to red team JSON report.
+        output: Optional destination path for certification HTML.
+    """
     logger.info("Phase 9C stub invoked: report={} output={}", report, output)
     rprint(
         "[yellow]Phase 9C not yet implemented. Certification badge generation "

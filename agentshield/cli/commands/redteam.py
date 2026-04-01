@@ -65,7 +65,12 @@ def list_attacks(
         ),
     ] = None,
 ) -> None:
-    """List available red team attack payloads."""
+    """List available red team attack payloads.
+
+    Args:
+        category: Optional attack category filter.
+        severity: Optional severity filter.
+    """
     attacks = ATTACK_LIBRARY
 
     if category is not None:
@@ -164,7 +169,15 @@ def run_attacks(
         ),
     ] = "monitor_only",
 ) -> None:
-    """Run red team attacks against a live shielded agent. (Implemented in Phase 9B)"""
+    """Run red team attacks against a live shielded agent.
+
+    Args:
+        agent_module: Import path for an agent factory callable.
+        category: Optional category filter for selected attacks.
+        attack_id: Optional single attack ID to execute.
+        output: Optional output path for JSON report.
+        policy: Policy mode to apply during runtime execution.
+    """
     logger.info(
         "Phase 9B stub invoked: module={} category={} attack_id={} output={} policy={}",
         agent_module,
