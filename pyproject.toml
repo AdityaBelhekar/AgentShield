@@ -58,7 +58,7 @@ dependencies = [
   "cryptography>=42.0.0",
 
   # CLI (Phase 9)
-  "typer>=0.12.0",
+  "typer[all]>=0.12.0",
   "rich>=13.0.0",
 ]
 
@@ -82,7 +82,7 @@ autogen = [
 ]
 
 [project.scripts]
-agentshield = "cli.main:app"
+agentshield = "agentshield.cli.app:cli"
 
 [project.urls]
 Homepage = "https://github.com/AdityaBelhekar/AgentShield"
