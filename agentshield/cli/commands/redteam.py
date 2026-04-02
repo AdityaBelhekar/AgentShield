@@ -20,6 +20,8 @@ from agentshield.cli.attack_library import (
     get_attack_by_id,
     get_attacks_by_category,
 )
+from agentshield.cli.certify import CertificationEngine
+from agentshield.cli.html_report import HtmlReportRenderer
 from agentshield.cli.report import ReportBuilder, ReportSerializer
 from agentshield.cli.runner import (
     AgentLoader,
@@ -191,6 +193,13 @@ def run_attacks(
             help="Write JSON report to this path.",
         ),
     ] = None,
+    html_output: Annotated[
+        Path | None,
+        typer.Option(
+            "--html-output",
+            help="Also render and save an HTML report to this path.",
+        ),
+    ] = None,
     policy: Annotated[
         str,
         typer.Option(
@@ -207,6 +216,7 @@ def run_attacks(
         category: Optional category filter for selected attacks.
         attack_id: Optional single attack ID to execute.
         output: Optional output path for JSON report.
+        html_output: Optional output path for HTML report.
         policy: Policy mode to apply during runtime execution.
     """
     loader = AgentLoader(agent_module)
@@ -304,4 +314,15 @@ def run_attacks(
             rprint(f"[green]Report saved to:[/] {output}")
         except AgentShieldError as exc:
             rprint(f"[red]Failed to save report:[/] {exc}")
+            raise typer.Exit(code=1) from exc
+
+    if html_output is not None:
+        cert = CertificationEngine.evaluate(report)
+        renderer = HtmlReportRenderer(report, cert)
+        html_content = renderer.render()
+        try:
+            HtmlReportRenderer.save(html_content, html_output)
+            rprint(f"[green]HTML report saved to:[/] {html_output}")
+        except AgentShieldError as exc:
+            rprint(f"[red]Failed to save HTML report:[/] {exc}")
             raise typer.Exit(code=1) from exc
