@@ -2,19 +2,32 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
 
 import typer
 from loguru import logger
 from rich import print as rprint
+from rich.panel import Panel
+from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
 from agentshield.cli.attack_library import (
     ATTACK_LIBRARY,
     AttackCategory,
     AttackSeverity,
+    get_attack_by_id,
+    get_attacks_by_category,
 )
+from agentshield.cli.report import ReportBuilder, ReportSerializer
+from agentshield.cli.runner import (
+    AgentLoader,
+    AttackOutcome,
+    AttackResult,
+    AttackRunner,
+)
+from agentshield.exceptions import AgentShieldError
 
 redteam_app = typer.Typer(
     name="redteam",
@@ -40,6 +53,24 @@ def _severity_style(severity: AttackSeverity) -> str:
     if severity == AttackSeverity.MEDIUM:
         return "yellow"
     return "green"
+
+
+def _outcome_style(outcome: AttackOutcome) -> str:
+    """Return Rich style for a run outcome.
+
+    Args:
+        outcome: Attack outcome enum value.
+
+    Returns:
+        Rich style string for display.
+    """
+    if outcome == AttackOutcome.DETECTED:
+        return "bold green"
+    if outcome == AttackOutcome.BYPASSED:
+        return "bold red"
+    if outcome == AttackOutcome.SIMULATED:
+        return "dim"
+    return "yellow"
 
 
 @redteam_app.command("list")
@@ -178,16 +209,99 @@ def run_attacks(
         output: Optional output path for JSON report.
         policy: Policy mode to apply during runtime execution.
     """
+    loader = AgentLoader(agent_module)
+    try:
+        agent = loader.load()
+    except AgentShieldError as exc:
+        rprint(f"[red]Failed to load agent:[/] {exc}")
+        raise typer.Exit(code=1) from exc
+
+    attacks = ATTACK_LIBRARY
+    if attack_id is not None:
+        try:
+            attacks = [get_attack_by_id(attack_id)]
+        except AgentShieldError as exc:
+            rprint(f"[red]Failed to select attack:[/] {exc}")
+            raise typer.Exit(code=1) from exc
+    elif category is not None:
+        try:
+            parsed_category = AttackCategory(category)
+        except ValueError as exc:
+            valid_categories = ", ".join(item.value for item in AttackCategory)
+            rprint(
+                "[red]Invalid category:[/] "
+                f"{category}. Must be one of: {valid_categories}"
+            )
+            raise typer.Exit(code=1) from exc
+        attacks = get_attacks_by_category(parsed_category)
+
     logger.info(
-        "Phase 9B stub invoked: module={} category={} attack_id={} output={} policy={}",
+        "Prepared red team run | module={} policy={} attack_count={} "
+        "attack_id={} category={}",
         agent_module,
-        category,
-        attack_id,
-        output,
         policy,
+        len(attacks),
+        attack_id,
+        category,
     )
-    rprint(
-        "[yellow]Phase 9B not yet implemented. This command will run attacks "
-        "against a live agent.[/]"
+
+    run_timestamp = datetime.now(UTC).isoformat()
+    runner = AttackRunner(agent=agent, policy=policy)
+    results: list[AttackResult] = []
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("{task.description}"),
+        BarColumn(),
+        TextColumn("{task.completed}/{task.total}"),
+    ) as progress:
+        task = progress.add_task("Running attacks...", total=len(attacks))
+        for attack in attacks:
+            result = runner.run_single(attack)
+            results.append(result)
+            progress.advance(task)
+
+    builder = ReportBuilder(
+        agent_module=agent_module,
+        policy=policy,
+        run_timestamp=run_timestamp,
     )
-    raise typer.Exit(code=0)
+    report = builder.build(results)
+
+    table = Table(title="AgentShield Red Team Results", header_style="bold cyan")
+    table.add_column("ID", style="bold")
+    table.add_column("Name")
+    table.add_column("Category")
+    table.add_column("Outcome")
+    table.add_column("Latency (ms)", justify="right")
+
+    for result in report.results:
+        style = _outcome_style(result.outcome)
+        outcome_text = f"[{style}]{result.outcome.value}[/{style}]"
+        table.add_row(
+            result.attack_id,
+            result.attack_name,
+            result.category.value,
+            outcome_text,
+            f"{result.latency_ms:.2f}",
+        )
+
+    rprint(table)
+
+    summary = (
+        f"Total: {report.total_attacks}  "
+        f"Detected: {report.detected_count}  "
+        f"Bypassed: {report.bypassed_count}\n"
+        f"Simulated: {report.simulated_count}  "
+        f"Errors: {report.error_count}\n"
+        f"Detection rate: {report.detection_rate_pct:.2f}%"
+    )
+    rprint(Panel(summary, title="Summary", border_style="cyan"))
+
+    if output is not None:
+        try:
+            ReportSerializer.save(report, output)
+            rprint(f"[green]Report saved to:[/] {output}")
+        except AgentShieldError as exc:
+            rprint(f"[red]Failed to save report:[/] {exc}")
+            raise typer.Exit(code=1) from exc
