@@ -8,6 +8,7 @@ exceptions with a single except clause if needed.
 Hierarchy:
     AgentShieldError
     ├── ConfigurationError
+    ├── AdapterError
     ├── InterceptorError
     ├── DetectionError
     ├── EventEmissionError
@@ -115,6 +116,10 @@ class AgentShieldError(Exception):
 
 class ConfigurationError(AgentShieldError):
     """Raised when AgentShield configuration is invalid."""
+
+
+class AdapterError(AgentShieldError):
+    """Raised when adapter discovery or wrapping fails."""
 
 
 class InterceptorError(AgentShieldError):

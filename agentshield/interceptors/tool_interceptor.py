@@ -248,6 +248,126 @@ class ToolInterceptor(BaseInterceptor):
             self._session_id,
         )
 
+    def create_hook(
+        self,
+        tool_name: str,
+        original_fn: Callable[..., Any],
+        agent_id: str,
+    ) -> Callable[..., Any]:
+        """Return wrapped tool function with pre/post interception.
+
+        Emits TOOL_CALL_START before execution, runs pre-call hooks,
+        executes the original function, and emits TOOL_CALL_COMPLETE
+        after success. If the call is blocked or policy violations are
+        raised, emits a failed/blocked event and re-raises.
+
+        Args:
+            tool_name: Name of the tool being wrapped.
+            original_fn: Original callable to execute.
+            agent_id: Agent identifier associated with this tool call.
+
+        Returns:
+            Wrapped callable preserving original signature behavior.
+        """
+
+        interceptor = self
+
+        def _hooked(*args: Any, **kwargs: Any) -> Any:
+            tool_input = interceptor._extract_input(args, kwargs)
+
+            start_event = ToolCallEvent(
+                session_id=interceptor._session_id,
+                agent_id=agent_id,
+                event_type=EventType.TOOL_CALL_START,
+                severity=SeverityLevel.INFO,
+                metadata={"status": "STARTED"},
+                tool_name=tool_name,
+                tool_input=tool_input,
+                trust_level=TrustLevel.EXTERNAL,
+            )
+            interceptor._emit(start_event)
+
+            try:
+                block_result = interceptor._run_pre_hooks(start_event)
+            except PolicyViolationError as exc:
+                failed_event = ToolCallEvent(
+                    session_id=interceptor._session_id,
+                    agent_id=agent_id,
+                    event_type=EventType.TOOL_CALL_COMPLETE,
+                    severity=SeverityLevel.HIGH,
+                    metadata={"status": "FAILED"},
+                    tool_name=tool_name,
+                    tool_input=tool_input,
+                    tool_output=str(exc),
+                    trust_level=TrustLevel.EXTERNAL,
+                )
+                interceptor._emit(failed_event)
+                raise
+
+            if block_result is not None and block_result.block:
+                blocked_event = ToolCallEvent(
+                    session_id=interceptor._session_id,
+                    agent_id=agent_id,
+                    event_type=EventType.TOOL_CALL_BLOCKED,
+                    severity=SeverityLevel.HIGH,
+                    metadata={"status": "FAILED"},
+                    tool_name=tool_name,
+                    tool_input=tool_input,
+                    blocked=True,
+                    block_reason=block_result.reason,
+                    trust_level=TrustLevel.EXTERNAL,
+                )
+                interceptor._emit(blocked_event)
+                raise ToolCallBlockedError(
+                    f"Tool call blocked: {block_result.reason}",
+                    confidence=block_result.confidence,
+                    evidence={
+                        "tool_name": tool_name,
+                        "tool_input": tool_input,
+                        "reason": block_result.reason,
+                    },
+                )
+
+            start_time = time.monotonic()
+
+            try:
+                result = original_fn(*args, **kwargs)
+            except PolicyViolationError as exc:
+                failed_event = ToolCallEvent(
+                    session_id=interceptor._session_id,
+                    agent_id=agent_id,
+                    event_type=EventType.TOOL_CALL_COMPLETE,
+                    severity=SeverityLevel.HIGH,
+                    metadata={"status": "FAILED"},
+                    tool_name=tool_name,
+                    tool_input=tool_input,
+                    tool_output=str(exc),
+                    execution_time_ms=(time.monotonic() - start_time) * 1000.0,
+                    trust_level=TrustLevel.EXTERNAL,
+                )
+                interceptor._emit(failed_event)
+                raise
+
+            execution_time_ms = (time.monotonic() - start_time) * 1000.0
+            complete_event = ToolCallEvent(
+                session_id=interceptor._session_id,
+                agent_id=agent_id,
+                event_type=EventType.TOOL_CALL_COMPLETE,
+                severity=SeverityLevel.INFO,
+                metadata={"status": "COMPLETED"},
+                tool_name=tool_name,
+                tool_input=tool_input,
+                tool_output=str(result),
+                execution_time_ms=execution_time_ms,
+                trust_level=TrustLevel.EXTERNAL,
+            )
+            interceptor._emit(complete_event)
+            interceptor._run_post_hooks(complete_event)
+
+            return result
+
+        return _hooked
+
     def _patch_tool(self, tool: BaseTool) -> None:
         """Replace a single tool's _run and _arun with wrappers.
 

@@ -11,6 +11,7 @@ from typing import Any, Literal, Protocol, cast
 from langchain_core.tools import BaseTool
 from loguru import logger
 
+from agentshield.adapters import AdapterConfig, AdapterContext, AdapterRegistry
 from agentshield.audit import (
     AuditChainExporter,
     AuditChainStore,
@@ -239,6 +240,7 @@ class AgentShieldRuntime:
     _config: AgentShieldConfig
     _emitter: EventEmitter
     _audit_chain: AuditChainStore | None
+    _runtime_session_id: str
     detection_engine: DetectionEngine
     _sessions: dict[uuid.UUID, _SessionContext]
 
@@ -259,6 +261,7 @@ class AgentShieldRuntime:
 
         self._emitter = EventEmitter(config, audit_chain=self._audit_chain)
         self.detection_engine = DetectionEngine(config, self._emitter)
+        self._runtime_session_id = str(uuid.uuid4())
         self._sessions = {}
 
         self._config.log_active_config()
@@ -659,6 +662,15 @@ class AgentShieldRuntime:
         return len(self._sessions)
 
     @property
+    def session_id(self) -> str:
+        """Return this runtime instance identifier for adapter context.
+
+        Returns:
+            Runtime-level session identifier.
+        """
+        return self._runtime_session_id
+
+    @property
     def audit_chain(self) -> AuditChainStore | None:
         """Return the active audit chain store or None if disabled."""
         return self._audit_chain
@@ -759,6 +771,18 @@ def shield(
     """
     runtime_config = config or AgentShieldConfig()
     runtime = AgentShieldRuntime(runtime_config)
+
+    adapter_cls = AdapterRegistry.detect(agent)
+    if adapter_cls is not None:
+        adapter = adapter_cls()
+        ctx = AdapterContext(
+            runtime=runtime,
+            config=AdapterConfig(framework_name=adapter_cls.framework_name),
+            agent_id=agent_id,
+            session_id=runtime.session_id,
+        )
+        agent = adapter.wrap(agent, ctx)
+        logger.info("adapter_selected", framework=adapter_cls.framework_name)
 
     policy = policy or "monitor_only"
 

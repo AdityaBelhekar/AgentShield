@@ -20,6 +20,7 @@ from agentshield.audit import (
     ChainedAuditEntry,
     VerificationResult,
 )
+from agentshield.adapters import AdapterRegistry, BaseAdapter
 from agentshield.canary import CanarySystem
 from agentshield.config import AgentShieldConfig
 from agentshield.detection import (
@@ -49,6 +50,7 @@ from agentshield.events import (
 )
 from agentshield.exceptions import (
     AgentShieldError,
+    AdapterError,
     AuditChainError,
     BehavioralAnomalyError,
     CanaryError,
@@ -118,6 +120,7 @@ __all__ = [
     "deserialize_event",
     # Base exceptions
     "AgentShieldError",
+    "AdapterError",
     "ConfigurationError",
     "InterceptorError",
     "DetectionError",
@@ -155,4 +158,6 @@ __all__ = [
     "WrappedAgent",
     "shield",
     "EventScrubber",
+    "BaseAdapter",
+    "AdapterRegistry",
 ]
