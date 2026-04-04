@@ -71,6 +71,7 @@ from agentshield.exceptions import (
 )
 from agentshield.notifications import WebhookConfig, WebhookNotifier
 from agentshield.observability import OTelConfig, OTelExporter
+from agentshield.observability.prometheus_exporter import PrometheusExporter
 from agentshield.policy import (
     BUILTIN_POLICIES,
     CompiledPolicy,
@@ -84,6 +85,7 @@ from agentshield.policy import (
 from agentshield.provenance import ProvenanceTracker
 from agentshield.runtime import AgentShieldRuntime, WrappedAgent, shield
 from agentshield.scrubber import EventScrubber
+from agentshield.siem import SIEMConfig, SIEMManager
 
 __version__ = "0.1.0"
 __author__ = "GroundTruth"
@@ -97,6 +99,9 @@ __all__ = [
     "WebhookNotifier",
     "OTelConfig",
     "OTelExporter",
+    "PrometheusExporter",
+    "SIEMConfig",
+    "SIEMManager",
     "AuditChainExporter",
     "AuditChainStore",
     "AuditChainVerifier",

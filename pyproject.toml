@@ -88,9 +88,17 @@ observability = [
 notifications = [
   "httpx>=0.27.0",
 ]
+grafana = [
+  "prometheus-client>=0.20.0",
+]
+siem = [
+  "httpx>=0.27.0",
+]
 all = [
   "agentshield-sdk[observability]",
   "agentshield-sdk[notifications]",
+  "agentshield-sdk[grafana]",
+  "agentshield-sdk[siem]",
 ]
 
 [project.scripts]

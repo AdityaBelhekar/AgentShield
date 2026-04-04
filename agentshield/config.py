@@ -171,6 +171,54 @@ class AgentShieldConfig(BaseSettings):
         description="PagerDuty rate limit cooldown in seconds",
     )
 
+    # ── Prometheus / Grafana ─────────────────────────────────
+    prometheus_enabled: bool = Field(
+        default=False,
+        description="Enable Prometheus /metrics endpoint",
+    )
+    prometheus_port: int = Field(
+        default=9090,
+        description="Port for Prometheus metrics HTTP server",
+    )
+
+    # ── SIEM ─────────────────────────────────────────────────
+    siem_syslog_enabled: bool = Field(
+        default=False,
+        description="Enable CEF syslog SIEM export",
+    )
+    siem_syslog_host: str = Field(
+        default="localhost",
+        description="Syslog/SIEM host",
+    )
+    siem_syslog_port: int = Field(
+        default=514,
+        description="Syslog/SIEM port",
+    )
+    siem_syslog_protocol: str = Field(
+        default="udp",
+        description="Syslog transport: udp or tcp",
+    )
+    siem_http_enabled: bool = Field(
+        default=False,
+        description="Enable HTTP SIEM export (Splunk HEC, Elastic, generic)",
+    )
+    siem_http_endpoint: str = Field(
+        default="",
+        description="HTTP SIEM endpoint URL",
+    )
+    siem_http_mode: str = Field(
+        default="generic",
+        description="HTTP SIEM mode: generic or splunk_hec",
+    )
+    siem_http_token: str = Field(
+        default="",
+        description="HTTP SIEM auth token",
+    )
+    siem_min_severity: str = Field(
+        default="LOW",
+        description="Minimum severity for SIEM export",
+    )
+
     # Detection tuning - Issue 4 fix (moved from hardcoded)
     rolling_window_size: int = Field(
         default=10,
