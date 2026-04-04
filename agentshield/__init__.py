@@ -13,6 +13,7 @@ GitHub: https://github.com/AdityaBelhekar/AgentShield
 Docs:   https://agentshield.dev/docs
 """
 
+from agentshield.adapters import AdapterRegistry, BaseAdapter
 from agentshield.audit import (
     AuditChainExporter,
     AuditChainStore,
@@ -20,7 +21,6 @@ from agentshield.audit import (
     ChainedAuditEntry,
     VerificationResult,
 )
-from agentshield.adapters import AdapterRegistry, BaseAdapter
 from agentshield.canary import CanarySystem
 from agentshield.config import AgentShieldConfig
 from agentshield.detection import (
@@ -49,8 +49,8 @@ from agentshield.events import (
     deserialize_event,
 )
 from agentshield.exceptions import (
-    AgentShieldError,
     AdapterError,
+    AgentShieldError,
     AuditChainError,
     BehavioralAnomalyError,
     CanaryError,
@@ -69,6 +69,7 @@ from agentshield.exceptions import (
     RedisConnectionError,
     ToolCallBlockedError,
 )
+from agentshield.observability import OTelConfig, OTelExporter
 from agentshield.policy import (
     BUILTIN_POLICIES,
     CompiledPolicy,
@@ -91,6 +92,8 @@ __all__ = [
     "__version__",
     # Config
     "AgentShieldConfig",
+    "OTelConfig",
+    "OTelExporter",
     "AuditChainExporter",
     "AuditChainStore",
     "AuditChainVerifier",

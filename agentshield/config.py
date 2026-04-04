@@ -123,6 +123,19 @@ class AgentShieldConfig(BaseSettings):
         description="Max in-memory chain entries before oldest are dropped",
     )
 
+    # ── Observability ────────────────────────────────────────
+    otel_enabled: bool = Field(default=False, description="Enable OTel export")
+    otel_service_name: str = Field(
+        default="agentshield",
+        description="OTel service.name resource attribute",
+    )
+    otel_otlp_endpoint: str = Field(
+        default="http://localhost:4317",
+        description="OTLP gRPC collector endpoint",
+    )
+    otel_export_traces: bool = Field(default=True, description="Export traces")
+    otel_export_metrics: bool = Field(default=True, description="Export metrics")
+
     # Detection tuning - Issue 4 fix (moved from hardcoded)
     rolling_window_size: int = Field(
         default=10,
