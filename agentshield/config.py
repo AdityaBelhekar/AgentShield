@@ -136,6 +136,41 @@ class AgentShieldConfig(BaseSettings):
     otel_export_traces: bool = Field(default=True, description="Export traces")
     otel_export_metrics: bool = Field(default=True, description="Export metrics")
 
+    # ── Notifications ────────────────────────────────────────
+    slack_enabled: bool = Field(
+        default=False,
+        description="Enable Slack webhook alerting",
+    )
+    slack_webhook_url: str = Field(
+        default="",
+        description="Slack Incoming Webhook URL",
+    )
+    slack_min_severity: str = Field(
+        default="HIGH",
+        description="Minimum severity for Slack alerts",
+    )
+    slack_cooldown_seconds: int = Field(
+        default=60,
+        description="Slack rate limit cooldown in seconds",
+    )
+
+    pagerduty_enabled: bool = Field(
+        default=False,
+        description="Enable PagerDuty alerting",
+    )
+    pagerduty_routing_key: str = Field(
+        default="",
+        description="PagerDuty Events API v2 routing key (32 chars)",
+    )
+    pagerduty_min_severity: str = Field(
+        default="CRITICAL",
+        description="Minimum severity for PagerDuty alerts",
+    )
+    pagerduty_cooldown_seconds: int = Field(
+        default=300,
+        description="PagerDuty rate limit cooldown in seconds",
+    )
+
     # Detection tuning - Issue 4 fix (moved from hardcoded)
     rolling_window_size: int = Field(
         default=10,

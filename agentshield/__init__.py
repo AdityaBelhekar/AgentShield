@@ -69,6 +69,7 @@ from agentshield.exceptions import (
     RedisConnectionError,
     ToolCallBlockedError,
 )
+from agentshield.notifications import WebhookConfig, WebhookNotifier
 from agentshield.observability import OTelConfig, OTelExporter
 from agentshield.policy import (
     BUILTIN_POLICIES,
@@ -92,6 +93,8 @@ __all__ = [
     "__version__",
     # Config
     "AgentShieldConfig",
+    "WebhookConfig",
+    "WebhookNotifier",
     "OTelConfig",
     "OTelExporter",
     "AuditChainExporter",
