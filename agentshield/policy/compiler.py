@@ -129,6 +129,27 @@ class PolicyCompiler:
         self._config = config
         logger.debug("PolicyCompiler initialized")
 
+    @classmethod
+    def load(
+        cls,
+        policy: str | Path | PolicyConfig | None,
+        config: AgentShieldConfig | None = None,
+    ) -> CompiledPolicy:
+        """Load and compile a policy from any supported source.
+
+        Args:
+            policy: Built-in name, YAML path, PolicyConfig, or None.
+            config: Optional runtime configuration. Defaults to AgentShieldConfig().
+
+        Returns:
+            Compiled policy ready for evaluation.
+        """
+
+        compiler = cls(config or AgentShieldConfig())
+        if isinstance(policy, Path):
+            return compiler.compile(str(policy))
+        return compiler.compile(policy)
+
     def compile(self, policy: str | PolicyConfig | None) -> CompiledPolicy:
         """Compile a policy from any supported source.
 

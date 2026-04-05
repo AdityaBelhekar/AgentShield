@@ -79,9 +79,7 @@ class EventStore:
             Filtered list, may be empty.
         """
         async with self._lock:
-            return [
-                event for event in self._store if str(event.session_id) == session_id
-            ]
+            return [event for event in self._store if str(event.session_id) == session_id]
 
     async def get_threats(self) -> list[ThreatEvent]:
         """Return only ThreatEvent instances from the store.

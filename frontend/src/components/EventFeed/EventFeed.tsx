@@ -115,7 +115,6 @@ export function EventFeed({
         )}
       </header>
 
-      {/* TODO: add virtual scrolling if event volume exceeds current list rendering limits. */}
       <div
         className="flex-1 overflow-y-auto [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-gray-700 [&::-webkit-scrollbar]:w-1"
         style={{ maxHeight }}
@@ -123,7 +122,9 @@ export function EventFeed({
         {displayedEvents.length === 0 ? (
           <div className="flex h-full min-h-24 items-center justify-center px-3 py-8">
             <p className="text-sm text-gray-500">
-              {selectedAgentId ? "No events for selected agent" : "Waiting for live events"}
+              {selectedAgentId
+                ? "No events for selected agent"
+                : "Waiting for agent activity. Wrap your agent with shield() to begin."}
             </p>
           </div>
         ) : (

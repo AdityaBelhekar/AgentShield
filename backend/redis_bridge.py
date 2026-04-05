@@ -115,6 +115,22 @@ class RedisBridge:
         await self._close_connections()
         logger.info("RedisBridge stopped")
 
+    async def is_connected(self) -> bool:
+        """Return whether Redis bridge is currently connected.
+
+        Returns:
+            True when the Redis client is available and ping succeeds.
+        """
+        if self._client is None or self._pubsub is None:
+            return False
+
+        try:
+            await self._client.ping()
+        except (RedisError, OSError, RuntimeError, ValueError):
+            return False
+
+        return True
+
     def register_handler(self, handler: Callable[[BaseEvent], Awaitable[None]]) -> None:
         """Register an async event handler.
 
@@ -213,10 +229,7 @@ class RedisBridge:
             )
         except (RedisError, OSError, ValueError) as exc:
             raise RedisConnectionError(
-                message=(
-                    "Failed to connect/subscribe RedisBridge "
-                    f"to {self._config.redis_url}"
-                ),
+                message=("Failed to connect/subscribe RedisBridge " f"to {self._config.redis_url}"),
                 evidence={"channel": self._config.redis_channel, "error": str(exc)},
             ) from exc
 

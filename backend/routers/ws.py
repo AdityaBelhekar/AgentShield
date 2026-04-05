@@ -70,9 +70,7 @@ async def stream_events(
         if not await _safe_send_json(websocket, history_payload):
             return
 
-        last_sent_id: str | None = (
-            history_responses[-1].id if history_responses else None
-        )
+        last_sent_id: str | None = history_responses[-1].id if history_responses else None
         while True:
             store._updated.clear()
             snapshot: list[BaseEvent] = await store.get_recent(1)

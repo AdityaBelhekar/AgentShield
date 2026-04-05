@@ -186,7 +186,7 @@ export function AgentGraph({
       {agentCount === 0 ? (
         <div className="flex flex-1 items-center justify-center">
           <p className="text-sm italic text-gray-500">
-            No agents connected - start a demo to see the trust graph
+            No agents connected yet. Wrap an agent with shield() to populate the graph.
           </p>
         </div>
       ) : (

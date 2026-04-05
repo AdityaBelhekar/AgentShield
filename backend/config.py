@@ -64,9 +64,7 @@ class BackendConfig(BaseSettings):
         normalized = value.upper()
         allowed = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
         if normalized not in allowed:
-            raise ValueError(
-                f"log_level must be one of {sorted(allowed)}, got {value!r}"
-            )
+            raise ValueError(f"log_level must be one of {sorted(allowed)}, got {value!r}")
         return normalized
 
     @field_validator("event_store_max_size")

@@ -1,9 +1,9 @@
 import { useEffect } from "react";
 import { AgentGraph } from "./components/AgentGraph";
 import { AlertPanel } from "./components/AlertPanel";
+import { ConnectedAgentsPanel } from "./components/ConnectedAgentsPanel";
 import { EventFeed } from "./components/EventFeed";
 import { ForensicTrace } from "./components/ForensicTrace";
-import { DemoControlPanel } from "./components/DemoControlPanel";
 import { wsManager } from "./services/wsManager";
 import { useShieldStore } from "./store/useShieldStore";
 
@@ -59,7 +59,7 @@ export default function App(): JSX.Element {
         </div>
 
         <div className="w-[360px] shrink-0 overflow-y-auto border-l border-[#1f2937]">
-          <DemoControlPanel />
+          <ConnectedAgentsPanel />
         </div>
       </div>
 

@@ -1,17 +1,17 @@
+"""Core runtime orchestration and public shield() API for AgentShield."""
+
 from __future__ import annotations
 
 import time
 import uuid
-from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Literal, Protocol, cast
+from typing import Any, Literal
 
-from langchain_core.tools import BaseTool
 from loguru import logger
 
-from agentshield.adapters import AdapterConfig, AdapterContext, AdapterRegistry
+from agentshield.adapters import AdapterConfig, AdapterContext, AdapterRegistry, BaseAdapter
 from agentshield.audit import (
     AuditChainExporter,
     AuditChainStore,
@@ -22,115 +22,80 @@ from agentshield.config import AgentShieldConfig
 from agentshield.detection.engine import DetectionEngine
 from agentshield.events.emitter import EventEmitter
 from agentshield.events.models import (
-    BaseEvent,
     EventType,
+    LLMEvent,
+    MemoryEvent,
     SessionEvent,
     SeverityLevel,
     ToolCallEvent,
     TrustLevel,
 )
-from agentshield.exceptions import (
-    AuditChainError,
-    InterceptorError,
-    PolicyViolationError,
+from agentshield.exceptions import AuditChainError, ConfigurationError, PolicyViolationError
+from agentshield.policy.compiler import CompiledPolicy, PolicyCompiler
+
+_VALID_FRAMEWORKS: tuple[str, ...] = (
+    "langchain",
+    "llamaindex",
+    "autogen",
+    "openai",
+    "anthropic",
 )
-from agentshield.interceptors.llm_interceptor import LLMInterceptor
-from agentshield.interceptors.memory_interceptor import MemoryInterceptor
-from agentshield.interceptors.tool_interceptor import ToolInterceptor
-from agentshield.policy.models import PolicyConfig
+
+_active_runtimes: dict[str, AgentShieldRuntime] = {}
 
 
-class BaseMemory(Protocol):
-    """Minimal protocol for memory compatibility across LangChain versions."""
-
-    def save_context(
-        self,
-        inputs: dict[str, Any],
-        outputs: dict[str, Any],
-    ) -> Any: ...
-
-    def load_memory_vars(self, inputs: dict[str, Any]) -> dict[str, Any]: ...
-
-
-@dataclass
+@dataclass(slots=True)
 class _SessionContext:
-    """Internal session state managed by AgentShieldRuntime.
-
-    Created when wrap() is called and destroyed when the
-    WrappedAgent context manager exits.
+    """Internal runtime session state.
 
     Attributes:
-        session_id: UUID uniquely identifying this session.
+        session_id: UUID identifying this wrapped session.
         agent_id: Human-readable agent identifier.
-        original_task: The task the agent was given.
-        framework: Agent framework in use.
-        started_at: UTC timestamp of session start.
-        started_monotonic: Monotonic start marker for duration.
-        llm_interceptor: Attached LLM interceptor.
-        tool_interceptor: Attached tool interceptor.
-        memory_interceptor: Attached memory interceptor or None.
-        event_count: Total events emitted this session.
-        threat_count: Total threats detected this session.
+        framework: Adapter framework key.
+        policy_name: Active policy name.
+        original_task: Optional original task text.
+        started_at: UTC timestamp for session start.
+        started_monotonic: Monotonic start time for duration math.
+        event_count: Number of processed events.
+        threat_count: Number of threats detected.
+        tool_calls_total: Total observed tool calls.
+        tool_calls_blocked: Tool calls blocked by policy.
     """
 
     session_id: uuid.UUID
     agent_id: str
-    original_task: str
     framework: str
+    policy_name: str
+    original_task: str
     started_at: datetime
     started_monotonic: float
-    llm_interceptor: LLMInterceptor
-    tool_interceptor: ToolInterceptor
-    memory_interceptor: MemoryInterceptor | None = None
     event_count: int = 0
     threat_count: int = 0
+    tool_calls_total: int = 0
+    tool_calls_blocked: int = 0
 
 
 class WrappedAgent:
-    """A LangChain agent wrapped with AgentShield protection.
-
-    Context manager that manages the full session lifecycle:
-      __enter__: session is already started (done in wrap())
-      __exit__: emits SESSION_END, detaches interceptors,
-                flushes emitter
-
-    Also provides run() and invoke() as pass-through methods
-    to the underlying agent.
-
-    Attributes:
-        _agent: The original unwrapped agent.
-        _context: Session context for this session.
-        _emitter: EventEmitter shared with interceptors.
-        _runtime: The AgentShieldRuntime that created this.
-    """
+    """Runtime-managed wrapper around a protected agent instance."""
 
     _agent: Any
     _context: _SessionContext
-    _emitter: EventEmitter
     _runtime: AgentShieldRuntime
 
-    def __init__(
-        self,
-        agent: Any,
-        context: _SessionContext,
-        emitter: EventEmitter,
-        runtime: AgentShieldRuntime,
-    ) -> None:
-        """Initialize WrappedAgent.
+    def __init__(self, agent: Any, context: _SessionContext, runtime: AgentShieldRuntime) -> None:
+        """Initialize wrapped agent.
 
         Args:
-            agent: The original LangChain agent instance.
-            context: Session context for this agent session.
-            emitter: EventEmitter for publishing events.
-            runtime: The runtime that created this instance.
+            agent: Framework-native agent object.
+            context: Runtime session context.
+            runtime: Runtime that owns this wrapped session.
         """
         self._agent = agent
         self._context = context
-        self._emitter = emitter
         self._runtime = runtime
 
     def __enter__(self) -> WrappedAgent:
-        """Enter the runtime context.
+        """Enter context manager.
 
         Returns:
             This wrapped agent.
@@ -143,114 +108,151 @@ class WrappedAgent:
         exc_val: BaseException | None,
         exc_tb: Any | None,
     ) -> Literal[False]:
-        """Exit the runtime context and clean up session resources.
+        """Exit context manager and close runtime session.
 
         Args:
-            exc_type: Exception type if raised, else None.
-            exc_val: Exception instance if raised, else None.
-            exc_tb: Traceback if exception raised, else None.
+            exc_type: Exception type if one was raised.
+            exc_val: Exception value if one was raised.
+            exc_tb: Traceback object if one was raised.
 
         Returns:
-            False so exceptions are not suppressed.
+            False to always propagate caller exceptions.
         """
         del exc_type, exc_val, exc_tb
         self.close()
         return False
 
-    def close(self) -> None:
-        """Explicitly close the session and clean up resources.
-
-        Safe to call multiple times. Subsequent calls are no-ops.
-        """
-        self._runtime._close_session(self._context)
-
-    def run(self, input: str, **kwargs: Any) -> str:
-        """Run the agent with a string input.
+    def __getattr__(self, name: str) -> Any:
+        """Delegate unknown attributes to the wrapped agent object.
 
         Args:
-            input: String task for the agent to execute.
-            **kwargs: Additional kwargs passed to the agent.
+            name: Attribute name.
 
         Returns:
-            Agent output as a string.
+            Attribute value from wrapped agent.
         """
-        logger.info(
-            "Agent run started | agent={} session={}",
-            self._context.agent_id,
-            self._context.session_id,
-        )
-
-        result = self._agent.invoke({"input": input}, **kwargs)
-        if isinstance(result, dict):
-            return str(result.get("output", result))
-        return str(result)
-
-    def invoke(self, inputs: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
-        """Invoke the agent with a dictionary of inputs.
-
-        Args:
-            inputs: Input dictionary for the agent.
-            **kwargs: Additional kwargs passed to the agent.
-
-        Returns:
-            Agent output as a dictionary.
-        """
-        logger.info(
-            "Agent invoke started | agent={} session={}",
-            self._context.agent_id,
-            self._context.session_id,
-        )
-        result = self._agent.invoke(inputs, **kwargs)
-        if isinstance(result, dict):
-            return result
-        return {"output": str(result)}
+        return getattr(self._agent, name)
 
     @property
     def session_id(self) -> uuid.UUID:
-        """Get the UUID of the current session.
-
-        Returns:
-            Current session UUID.
-        """
+        """Return the active session UUID."""
         return self._context.session_id
 
     @property
     def agent_id(self) -> str:
-        """Get the current agent identifier string.
+        """Return wrapped agent identifier."""
+        return self._context.agent_id
+
+    def close(self) -> None:
+        """Close the wrapped runtime session."""
+        self._runtime._close_session(self._context)
+
+    def run(self, input: str, **kwargs: Any) -> Any:
+        """Execute the wrapped agent with a best-effort generic run strategy.
+
+        Args:
+            input: Prompt or task input text.
+            **kwargs: Framework-specific execution kwargs.
 
         Returns:
-            Agent identifier.
+            Framework-native execution result.
+
+        Raises:
+            ConfigurationError: If no runnable method is available.
         """
-        return self._context.agent_id
+        run_method = getattr(self._agent, "run", None)
+        if callable(run_method):
+            return run_method(input, **kwargs)
+
+        invoke_method = getattr(self._agent, "invoke", None)
+        if callable(invoke_method):
+            try:
+                return invoke_method(input, **kwargs)
+            except TypeError:
+                return invoke_method({"input": input}, **kwargs)
+
+        query_method = getattr(self._agent, "query", None)
+        if callable(query_method):
+            return query_method(input, **kwargs)
+
+        chat_method = getattr(self._agent, "chat", None)
+        if callable(chat_method):
+            return chat_method(input, **kwargs)
+
+        generate_reply_method = getattr(self._agent, "generate_reply", None)
+        if callable(generate_reply_method):
+            return generate_reply_method(messages=[{"role": "user", "content": input}], **kwargs)
+
+        raise ConfigurationError(
+            "Wrapped agent has no runnable surface. Supported run methods: "
+            "run, invoke, query, chat, generate_reply."
+        )
+
+    def invoke(self, inputs: dict[str, Any] | str, **kwargs: Any) -> Any:
+        """Invoke wrapped agent with structured input.
+
+        Args:
+            inputs: Input payload.
+            **kwargs: Framework-specific invocation kwargs.
+
+        Returns:
+            Framework-native invocation result.
+
+        Raises:
+            ConfigurationError: If no invocation method is available.
+        """
+        invoke_method = getattr(self._agent, "invoke", None)
+        if callable(invoke_method):
+            return invoke_method(inputs, **kwargs)
+
+        if isinstance(inputs, str):
+            return self.run(inputs, **kwargs)
+
+        if "input" in inputs:
+            return self.run(str(inputs["input"]), **kwargs)
+
+        raise ConfigurationError(
+            "Wrapped agent has no invoke() method and input payload does not contain 'input'."
+        )
 
 
 class AgentShieldRuntime:
-    """Orchestrates AgentShield session lifecycle.
-
-    Creates sessions, attaches interceptors, emits session
-    events, and manages cleanup.
-
-    Attributes:
-        _config: AgentShieldConfig for this runtime.
-        _emitter: Shared EventEmitter across all sessions.
-        detection_engine: DetectionEngine for threat orchestration.
-        _sessions: Active sessions keyed by session_id.
-    """
+    """Orchestrate session lifecycle and event routing for one wrapped agent."""
 
     _config: AgentShieldConfig
+    _framework: str
+    _agent_id: str
+    _policy: CompiledPolicy
+    _runtime_session_id: str
     _emitter: EventEmitter
     _audit_chain: AuditChainStore | None
-    _runtime_session_id: str
     detection_engine: DetectionEngine
     _sessions: dict[uuid.UUID, _SessionContext]
+    _active_session_id: uuid.UUID | None
+    _last_prompt_by_session: dict[uuid.UUID, str]
+    _tool_start_times: dict[tuple[uuid.UUID, str], float]
 
-    def __init__(self, config: AgentShieldConfig) -> None:
-        """Initialize the AgentShieldRuntime.
+    def __init__(
+        self,
+        config: AgentShieldConfig,
+        framework: str,
+        agent_id: str,
+        compiled_policy: CompiledPolicy,
+    ) -> None:
+        """Initialize runtime instance.
 
         Args:
-            config: AgentShieldConfig with all runtime settings.
+            config: Runtime configuration.
+            framework: Active adapter framework key.
+            agent_id: Wrapped agent identifier.
+            compiled_policy: Compiled policy used by this runtime.
         """
         self._config = config
+        self._framework = framework
+        self._agent_id = agent_id
+        self._policy = compiled_policy
+        self._runtime_session_id = str(uuid.uuid4())
+
         if config.audit_chain_enabled:
             self._audit_chain = AuditChainStore(
                 persist_path=config.audit_chain_path,
@@ -261,343 +263,325 @@ class AgentShieldRuntime:
 
         self._emitter = EventEmitter(config, audit_chain=self._audit_chain)
         self.detection_engine = DetectionEngine(config, self._emitter)
-        self._runtime_session_id = str(uuid.uuid4())
+        self.detection_engine.set_policy(compiled_policy.config)
+
         self._sessions = {}
+        self._active_session_id = None
+        self._last_prompt_by_session = {}
+        self._tool_start_times = {}
+
+        _active_runtimes[self._runtime_session_id] = self
 
         self._config.log_active_config()
-        logger.info("AgentShieldRuntime initialized")
+        logger.info(
+            "AgentShieldRuntime initialized | runtime={} framework={} policy={} agent={}",
+            self._runtime_session_id,
+            framework,
+            compiled_policy.name,
+            agent_id,
+        )
+
+    @property
+    def config(self) -> AgentShieldConfig:
+        """Return active runtime config."""
+        return self._config
+
+    @property
+    def session_id(self) -> str:
+        """Return runtime-level unique identifier."""
+        return self._runtime_session_id
+
+    @property
+    def framework(self) -> str:
+        """Return active framework key."""
+        return self._framework
+
+    @property
+    def agent_id(self) -> str:
+        """Return wrapped agent identifier."""
+        return self._agent_id
+
+    @property
+    def policy_name(self) -> str:
+        """Return active policy name."""
+        return self._policy.name
+
+    @property
+    def active_sessions(self) -> int:
+        """Count active sessions for this runtime."""
+        return len(self._sessions)
+
+    def to_agent_record(self) -> dict[str, Any]:
+        """Serialize runtime status for backend agent listing.
+
+        Returns:
+            Agent metadata dictionary.
+        """
+        return {
+            "name": self._agent_id,
+            "framework": self._framework,
+            "policy": self._policy.name,
+            "status": "active" if self.active_sessions > 0 else "disconnected",
+            "active": self.active_sessions > 0,
+            "runtime_id": self._runtime_session_id,
+        }
 
     def wrap(
         self,
         agent: Any,
-        tools: list[BaseTool],
-        memory: BaseMemory | None = None,
+        tools: list[Any] | None = None,
         original_task: str = "",
-        agent_id: str = "default",
-        framework: str = "langchain",
-        tool_trust_overrides: dict[str, TrustLevel] | None = None,
     ) -> WrappedAgent:
-        """Wrap an agent with AgentShield protection.
+        """Create a wrapped session for the provided agent object.
 
         Args:
-            agent: LangChain agent executor to protect.
-            tools: List of BaseTool instances the agent uses.
-            memory: Optional BaseMemory to monitor.
-            original_task: The task string for this session.
-            agent_id: Human-readable identifier for this agent.
-            framework: Agent framework string for audit logs.
-            tool_trust_overrides: Optional per-tool trust level
-                overrides for provenance classification.
+            agent: Framework-native agent instance.
+            tools: Optional tool collection used by some adapters.
+            original_task: Optional human-readable session task.
 
         Returns:
-            WrappedAgent ready to use.
-
-        Raises:
-            InterceptorError: If interceptor attachment fails.
+            Wrapped agent with lifecycle controls.
         """
+        del tools
         session_id = uuid.uuid4()
-
-        llm_interceptor = LLMInterceptor(
-            emitter=self._emitter,
-            config=self._config,
-            session_id=session_id,
-            agent_id=agent_id,
-        )
-        tool_interceptor = ToolInterceptor(
-            emitter=self._emitter,
-            config=self._config,
-            session_id=session_id,
-            agent_id=agent_id,
-        )
-
-        memory_interceptor: MemoryInterceptor | None = None
-
-        try:
-            llm_interceptor.attach(agent)
-            self._wire_llm_event_hook(
-                llm_interceptor,
-                self._make_llm_event_hook(session_id),
-            )
-            tool_interceptor.attach(tools)
-            tool_interceptor.add_pre_call_hook(self._make_pre_call_hook(session_id))
-            tool_interceptor.add_post_call_hook(self._make_post_call_hook(session_id))
-
-            if memory is not None:
-                memory_interceptor = MemoryInterceptor(
-                    emitter=self._emitter,
-                    config=self._config,
-                    session_id=session_id,
-                    agent_id=agent_id,
-                )
-                memory_interceptor.attach(memory)
-                self._wire_memory_event_hook(
-                    memory_interceptor,
-                    self._make_memory_event_hook(session_id),
-                )
-        except InterceptorError:
-            if memory_interceptor is not None and memory_interceptor.is_attached:
-                memory_interceptor.detach()
-            if tool_interceptor.is_attached:
-                tool_interceptor.detach()
-            if llm_interceptor.is_attached:
-                llm_interceptor.detach()
-            raise
-
         context = _SessionContext(
             session_id=session_id,
-            agent_id=agent_id,
+            agent_id=self._agent_id,
+            framework=self._framework,
+            policy_name=self._policy.name,
             original_task=original_task,
-            framework=framework,
             started_at=datetime.now(UTC),
             started_monotonic=time.monotonic(),
-            llm_interceptor=llm_interceptor,
-            tool_interceptor=tool_interceptor,
-            memory_interceptor=memory_interceptor,
         )
+
         self._sessions[session_id] = context
+        self._active_session_id = session_id
 
         self.detection_engine.initialize_session(
             session_id=session_id,
-            agent_id=agent_id,
+            agent_id=self._agent_id,
             original_task=original_task,
         )
-        if tool_trust_overrides:
-            tracker = self.detection_engine._provenance_tracker
-            tracker_context = tracker._contexts.get(str(session_id))
-            if tracker_context is not None:
-                tracker_context.tool_trust_overrides = {
-                    key.lower(): value for key, value in tool_trust_overrides.items()
-                }
 
         self._emitter.emit(
             SessionEvent(
                 session_id=session_id,
-                agent_id=agent_id,
+                agent_id=self._agent_id,
                 event_type=EventType.SESSION_START,
                 severity=SeverityLevel.INFO,
                 original_task=original_task,
-                framework=framework,
+                framework=self._framework,
+                policy_snapshot=self._policy.to_snapshot(),
             )
         )
 
         logger.info(
-            "Session started | session={} agent={} task={}",
+            "Session started | runtime={} session={} framework={} policy={} agent={}",
+            self._runtime_session_id,
             session_id,
-            agent_id,
-            original_task[:50],
+            self._framework,
+            self._policy.name,
+            self._agent_id,
         )
 
-        return WrappedAgent(
-            agent=agent,
-            context=context,
-            emitter=self._emitter,
-            runtime=self,
+        return WrappedAgent(agent=agent, context=context, runtime=self)
+
+    def on_llm_start(self, prompt: str) -> None:
+        """Record an LLM start event before model invocation.
+
+        Args:
+            prompt: Prompt text sent to the model.
+        """
+        context = self._get_active_context()
+        if context is None:
+            return
+
+        self._last_prompt_by_session[context.session_id] = prompt
+        event = LLMEvent(
+            session_id=context.session_id,
+            agent_id=context.agent_id,
+            event_type=EventType.LLM_PROMPT,
+            severity=SeverityLevel.INFO,
+            prompt=prompt,
+            model=context.framework,
         )
+        self._emit_and_process(event, context)
 
-    def _make_pre_call_hook(
-        self,
-        session_id: uuid.UUID,
-    ) -> Callable[[ToolCallEvent], Any]:
-        """Create a pre-call hook that runs detection on tool events.
-
-        The hook is a closure that captures session_id and
-        routes the tool event through the DetectionEngine.
-        If DetectionEngine raises PolicyViolationError,
-        the hook converts it to a HookResult(block=True).
+    def on_llm_end(self, response: str) -> None:
+        """Record an LLM end event after model invocation.
 
         Args:
-            session_id: Session UUID for context lookup.
-
-        Returns:
-            Hook callable for ToolInterceptor.add_pre_call_hook().
+            response: Model response text.
         """
-        from agentshield.interceptors.tool_interceptor import HookResult
+        context = self._get_active_context()
+        if context is None:
+            return
 
-        _ = session_id
-        engine = self.detection_engine
+        prompt = self._last_prompt_by_session.pop(context.session_id, "")
+        event = LLMEvent(
+            session_id=context.session_id,
+            agent_id=context.agent_id,
+            event_type=EventType.LLM_RESPONSE,
+            severity=SeverityLevel.INFO,
+            prompt=prompt,
+            response=response,
+            model=context.framework,
+        )
+        self._emit_and_process(event, context)
 
-        def pre_call_hook(event: ToolCallEvent) -> HookResult:
-            session_ctx = self._sessions.get(event.session_id)
-            try:
-                threats = engine.process_event(event)
-                if session_ctx is not None:
-                    session_ctx.event_count += 1
-                    if threats:
-                        session_ctx.threat_count += 1
-                return HookResult(block=False)
-            except PolicyViolationError as exc:
-                if session_ctx is not None:
-                    session_ctx.event_count += 1
-                    session_ctx.threat_count += 1
-                return HookResult(
-                    block=True,
-                    reason=exc.message,
-                    confidence=exc.confidence or 0.0,
-                )
-
-        pre_call_hook.__name__ = "detection_engine_hook"
-        return pre_call_hook
-
-    def _make_llm_event_hook(
-        self,
-        session_id: uuid.UUID,
-    ) -> Callable[[BaseEvent], None]:
-        """Create a callback that routes LLM events through DetectionEngine.
-
-        Raises: PolicyViolationError if detection warrants blocking.
+    def on_tool_start(self, name: str, input: Any) -> None:
+        """Record a tool start event.
 
         Args:
-            session_id: Session UUID for context lookup.
-
-        Returns:
-            Callable that accepts a BaseEvent and processes it.
+            name: Tool name.
+            input: Tool input payload.
         """
-        engine = self.detection_engine
+        context = self._get_active_context()
+        if context is None:
+            return
 
-        def llm_event_hook(event: BaseEvent) -> None:
-            session_ctx = self._sessions.get(event.session_id)
-            try:
-                threats = engine.process_event(event)
-                if session_ctx is not None:
-                    session_ctx.event_count += 1
-                    if threats:
-                        session_ctx.threat_count += 1
-            except PolicyViolationError:
-                if session_ctx is not None:
-                    session_ctx.event_count += 1
-                    session_ctx.threat_count += 1
-                raise
-            except (RuntimeError, ValueError, TypeError) as exc:
-                logger.error(
-                    "DetectionEngine error on LLM event | session={} error={}",
-                    str(session_id)[:8],
-                    exc,
-                )
+        self._tool_start_times[(context.session_id, name)] = time.monotonic()
+        event = ToolCallEvent(
+            session_id=context.session_id,
+            agent_id=context.agent_id,
+            event_type=EventType.TOOL_CALL_START,
+            severity=SeverityLevel.INFO,
+            tool_name=name,
+            tool_input={"value": str(input)},
+            trust_level=TrustLevel.EXTERNAL,
+        )
+        context.tool_calls_total += 1
+        self._emit_and_process(event, context)
 
-        llm_event_hook.__name__ = "detection_engine_llm_hook"
-        return llm_event_hook
-
-    def _make_memory_event_hook(
-        self,
-        session_id: uuid.UUID,
-    ) -> Callable[[BaseEvent], None]:
-        """Create a callback that routes memory events through DetectionEngine.
-
-        Raises: PolicyViolationError if detection warrants blocking.
+    def on_tool_end(self, name: str, output: Any) -> None:
+        """Record a tool completion event.
 
         Args:
-            session_id: Session UUID for context lookup.
-
-        Returns:
-            Callable that accepts a BaseEvent and processes it.
+            name: Tool name.
+            output: Tool output payload.
         """
-        engine = self.detection_engine
+        context = self._get_active_context()
+        if context is None:
+            return
 
-        def memory_event_hook(event: BaseEvent) -> None:
-            session_ctx = self._sessions.get(event.session_id)
-            try:
-                threats = engine.process_event(event)
-                if session_ctx is not None:
-                    session_ctx.event_count += 1
-                    if threats:
-                        session_ctx.threat_count += 1
-            except PolicyViolationError:
-                if session_ctx is not None:
-                    session_ctx.event_count += 1
-                    session_ctx.threat_count += 1
-                raise
-            except (RuntimeError, ValueError, TypeError) as exc:
-                logger.error(
-                    "DetectionEngine error on memory event | session={} error={}",
-                    str(session_id)[:8],
-                    exc,
-                )
+        started = self._tool_start_times.pop((context.session_id, name), None)
+        execution_ms = None
+        if started is not None:
+            execution_ms = (time.monotonic() - started) * 1000.0
 
-        memory_event_hook.__name__ = "detection_engine_memory_hook"
-        return memory_event_hook
+        event = ToolCallEvent(
+            session_id=context.session_id,
+            agent_id=context.agent_id,
+            event_type=EventType.TOOL_CALL_COMPLETE,
+            severity=SeverityLevel.INFO,
+            tool_name=name,
+            tool_output=str(output),
+            execution_time_ms=execution_ms,
+            trust_level=TrustLevel.EXTERNAL,
+        )
+        self._emit_and_process(event, context)
 
-    def _make_post_call_hook(
-        self,
-        session_id: uuid.UUID,
-    ) -> Callable[[ToolCallEvent], None]:
-        """Create a post-call hook that routes TOOL_CALL_COMPLETE events.
+    def on_memory_read(self, content: str) -> None:
+        """Record memory read interception.
 
         Args:
-            session_id: Session UUID for context lookup.
-
-        Returns:
-            Post-call hook callable for ToolInterceptor.
+            content: Memory content read preview.
         """
-        engine = self.detection_engine
+        context = self._get_active_context()
+        if context is None:
+            return
 
-        def post_call_hook(event: ToolCallEvent) -> None:
-            session_ctx = self._sessions.get(event.session_id)
-            try:
-                threats = engine.process_event(event)
-                if session_ctx is not None:
-                    session_ctx.event_count += 1
-                    if threats:
-                        session_ctx.threat_count += 1
-            except (RuntimeError, ValueError, TypeError) as exc:
-                if session_ctx is not None:
-                    session_ctx.event_count += 1
-                logger.error(
-                    "DetectionEngine error on tool complete | session={} error={}",
-                    str(session_id)[:8],
-                    exc,
-                )
+        event = MemoryEvent(
+            session_id=context.session_id,
+            agent_id=context.agent_id,
+            event_type=EventType.MEMORY_READ,
+            severity=SeverityLevel.INFO,
+            operation="read",
+            memory_key="memory",
+            content_preview=content,
+            content_length=len(content),
+        )
+        self._emit_and_process(event, context)
 
-        post_call_hook.__name__ = "detection_engine_post_hook"
-        return post_call_hook
+    def on_memory_write(self, content: str) -> None:
+        """Record memory write interception.
 
-    def _wire_llm_event_hook(
+        Args:
+            content: Memory content written preview.
+        """
+        context = self._get_active_context()
+        if context is None:
+            return
+
+        event = MemoryEvent(
+            session_id=context.session_id,
+            agent_id=context.agent_id,
+            event_type=EventType.MEMORY_WRITE,
+            severity=SeverityLevel.INFO,
+            operation="write",
+            memory_key="memory",
+            content_preview=content,
+            content_length=len(content),
+        )
+        self._emit_and_process(event, context)
+
+    def record_inter_agent_message(
         self,
-        llm_interceptor: LLMInterceptor,
-        hook: Callable[[BaseEvent], None],
+        sender_agent_id: str,
+        receiver_agent_id: str,
+        content: str,
     ) -> None:
-        """Wrap LLMInterceptor._emit to invoke a runtime-managed hook."""
-        original_emit = llm_interceptor._emit
+        """Record and evaluate a message exchanged between two agents.
 
-        def emit_with_hook(event: BaseEvent) -> None:
-            original_emit(event)
-            try:
-                hook(event)
-            except Exception as exc:
-                if isinstance(exc, PolicyViolationError):
-                    raise
-                logger.error(
-                    "LLM event hook error | hook={} error={}",
-                    getattr(hook, "__name__", "unknown"),
-                    exc,
-                )
+        Args:
+            sender_agent_id: Sender identifier.
+            receiver_agent_id: Receiver identifier.
+            content: Message content.
+        """
+        context = self._get_active_context()
+        if context is None:
+            return
 
-        llm_interceptor._emit = emit_with_hook  # type: ignore[method-assign]
+        threat = self.detection_engine.record_inter_agent_message(
+            sender_agent_id=sender_agent_id,
+            receiver_agent_id=receiver_agent_id,
+            content=content,
+            receiver_session_id=context.session_id,
+        )
+        if threat is not None:
+            context.threat_count += 1
 
-    def _wire_memory_event_hook(
-        self,
-        memory_interceptor: MemoryInterceptor,
-        hook: Callable[[BaseEvent], None],
-    ) -> None:
-        """Wrap MemoryInterceptor._emit to invoke a runtime-managed hook."""
-        original_emit = memory_interceptor._emit
+    def _emit_and_process(self, event: Any, context: _SessionContext) -> None:
+        """Emit one event and route it through detection.
 
-        def emit_with_hook(event: BaseEvent) -> None:
-            original_emit(event)
-            try:
-                hook(event)
-            except Exception as exc:
-                if isinstance(exc, PolicyViolationError):
-                    raise
-                logger.error(
-                    "Memory event hook error | hook={} error={}",
-                    getattr(hook, "__name__", "unknown"),
-                    exc,
-                )
+        Args:
+            event: Event model instance.
+            context: Active session context.
 
-        memory_interceptor._emit = emit_with_hook  # type: ignore[method-assign]
+        Raises:
+            PolicyViolationError: If policy blocks execution.
+        """
+        self._emitter.emit(event)
+        try:
+            threats = self.detection_engine.process_event(event)
+            context.event_count += 1
+            if threats:
+                context.threat_count += len(threats)
+        except PolicyViolationError:
+            context.event_count += 1
+            context.threat_count += 1
+            if getattr(event, "event_type", None) == EventType.TOOL_CALL_START:
+                context.tool_calls_blocked += 1
+            raise
+
+    def _get_active_context(self) -> _SessionContext | None:
+        """Return currently active session context when available."""
+        if self._active_session_id is None:
+            return None
+        return self._sessions.get(self._active_session_id)
 
     def _close_session(self, context: _SessionContext) -> None:
-        """Close a session and clean up all resources.
+        """Close an active session and release runtime resources.
 
         Args:
             context: Session context to close.
@@ -605,22 +589,7 @@ class AgentShieldRuntime:
         if context.session_id not in self._sessions:
             return
 
-        session_duration_seconds = max(
-            time.monotonic() - context.started_monotonic,
-            0.0,
-        )
-
-        try:
-            context.llm_interceptor.detach()
-            context.tool_interceptor.detach()
-            if context.memory_interceptor is not None:
-                context.memory_interceptor.detach()
-        except InterceptorError as exc:
-            logger.error(
-                "Error detaching interceptors | session={} error={}",
-                context.session_id,
-                exc,
-            )
+        duration_seconds = max(time.monotonic() - context.started_monotonic, 0.0)
 
         self._emitter.emit(
             SessionEvent(
@@ -630,87 +599,76 @@ class AgentShieldRuntime:
                 severity=SeverityLevel.INFO,
                 original_task=context.original_task,
                 framework=context.framework,
+                policy_snapshot=self._policy.to_snapshot(),
                 total_events=context.event_count,
                 threats_detected=context.threat_count,
-                metadata={
-                    "session_duration_seconds": round(
-                        session_duration_seconds,
-                        6,
-                    )
-                },
+                tool_calls_total=context.tool_calls_total,
+                tool_calls_blocked=context.tool_calls_blocked,
+                metadata={"session_duration_seconds": round(duration_seconds, 6)},
             )
         )
 
         self._emitter.flush()
         self.detection_engine.close_session(context.session_id)
+
         del self._sessions[context.session_id]
+        self._last_prompt_by_session.pop(context.session_id, None)
+
+        for key in list(self._tool_start_times):
+            if key[0] == context.session_id:
+                del self._tool_start_times[key]
+
+        if self._active_session_id == context.session_id:
+            self._active_session_id = None
+
+        if not self._sessions:
+            _active_runtimes.pop(self._runtime_session_id, None)
 
         logger.info(
-            "Session closed | session={} agent={} duration={:.2f}s",
+            "Session closed | runtime={} session={} duration={:.3f}s",
+            self._runtime_session_id,
             context.session_id,
-            context.agent_id,
-            session_duration_seconds,
+            duration_seconds,
         )
 
     @property
-    def active_sessions(self) -> int:
-        """Count active sessions.
-
-        Returns:
-            Number of active sessions.
-        """
-        return len(self._sessions)
-
-    @property
-    def session_id(self) -> str:
-        """Return this runtime instance identifier for adapter context.
-
-        Returns:
-            Runtime-level session identifier.
-        """
-        return self._runtime_session_id
-
-    @property
     def audit_chain(self) -> AuditChainStore | None:
-        """Return the active audit chain store or None if disabled."""
+        """Return configured audit chain store when enabled."""
         return self._audit_chain
 
     def get_audit_chain_store(self) -> AuditChainStore:
-        """Return the active audit chain store.
+        """Return active audit chain store.
 
         Returns:
-            Active AuditChainStore instance.
+            Active audit chain store.
 
         Raises:
             AuditChainError: If audit chain is disabled.
         """
-
         if self._audit_chain is None:
             raise AuditChainError("Audit chain store requested but is disabled")
         return self._audit_chain
 
     def verify_audit_chain(self) -> VerificationResult | None:
-        """Verify the currently configured audit chain.
+        """Verify active audit chain if enabled.
 
         Returns:
-            VerificationResult when enabled, else None.
+            Verification result when chain is enabled, otherwise None.
         """
         if self._audit_chain is None:
             return None
-
         verifier = AuditChainVerifier()
         return verifier.verify(self._audit_chain)
 
     def export_audit_chain(self, output_path: Path, *, format: str = "jsonl") -> None:
-        """Export the current audit chain to file.
+        """Export audit chain to disk.
 
         Args:
-            output_path: Path for export output.
-            format: Export format, either "jsonl" or "json".
+            output_path: Destination path.
+            format: Output format, jsonl or json.
 
         Raises:
-            AuditChainError: If chain is disabled, format is invalid,
-                or export fails.
+            AuditChainError: If export fails or format is unsupported.
         """
         if self._audit_chain is None:
             raise AuditChainError(
@@ -718,86 +676,119 @@ class AgentShieldRuntime:
             )
 
         exporter = AuditChainExporter(config=self._config)
-        normalized_format = format.lower()
-
-        if normalized_format == "jsonl":
+        normalized = format.lower()
+        if normalized == "jsonl":
             exporter.export_jsonl(self._audit_chain, output_path)
             return
-
-        if normalized_format == "json":
+        if normalized == "json":
             exporter.export_json_report(self._audit_chain, output_path)
             return
 
-        raise AuditChainError(
-            "Unsupported audit chain export format. Use 'jsonl' or 'json'."
+        raise AuditChainError("Unsupported audit chain export format. Use 'jsonl' or 'json'.")
+
+
+def list_active_agents() -> list[dict[str, Any]]:
+    """Return all currently active wrapped-agent records.
+
+    Returns:
+        List of agent status dictionaries.
+    """
+    return [runtime.to_agent_record() for runtime in _active_runtimes.values()]
+
+
+def _validate_framework_override(framework: str | None) -> str | None:
+    """Validate and normalize optional framework override.
+
+    Args:
+        framework: Optional framework override value.
+
+    Returns:
+        Normalized lower-case framework name, or None.
+
+    Raises:
+        ConfigurationError: If framework is unsupported.
+    """
+    if framework is None:
+        return None
+
+    normalized = framework.strip().lower()
+    if normalized not in _VALID_FRAMEWORKS:
+        options = ", ".join(_VALID_FRAMEWORKS)
+        raise ConfigurationError(
+            f"Invalid framework '{framework}'. Valid options: {options}."
         )
+    return normalized
+
+
+def _resolve_agent_id(agent: Any) -> str:
+    """Resolve a stable human-readable agent identifier.
+
+    Args:
+        agent: Wrapped agent object.
+
+    Returns:
+        Derived agent identifier.
+    """
+    for attr in ("agent_id", "name", "id"):
+        value = getattr(agent, attr, None)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return type(agent).__name__
 
 
 def shield(
     agent: Any,
-    *,
+    policy: str | Path = "monitor_only",
     tools: list[Any] | None = None,
-    memory: BaseMemory | None = None,
-    policy: PolicyConfig | str | None = "monitor_only",
-    config: AgentShieldConfig | None = None,
-    original_task: str = "",
-    agent_id: str = "default",
-    framework: str = "langchain",
-    tool_trust_overrides: dict[str, TrustLevel] | None = None,
+    framework: str | None = None,
 ) -> WrappedAgent:
-    """Wrap an agent with AgentShield protection.
-
-    Creates an AgentShieldRuntime, attaches all configured
-    interceptors and detectors, optionally compiles and
-    attaches a policy, and returns a WrappedAgent ready to run.
+    """Protect an agent instance with AgentShield interception and detection.
 
     Args:
-        agent: The LangChain agent or callable to protect.
-        tools: Optional list of LangChain tools to intercept.
-        memory: Optional LangChain BaseMemory to intercept.
-        policy: A PolicyConfig, built-in policy name
-            string, path to YAML file, or None to run
-            with no policy (detection only).
-        config: Optional AgentShieldConfig override.
-            Uses default config if not provided.
-        original_task: Task string for this session.
-        agent_id: Human-readable agent identifier.
-        framework: Agent framework string.
-        tool_trust_overrides: Optional per-tool trust level
-            overrides for provenance classification.
+        agent: Agent object from a supported framework.
+        policy: Built-in policy name or YAML policy path.
+        tools: Optional framework tool collection.
+        framework: Optional explicit framework override.
 
     Returns:
-        WrappedAgent with full AgentShield protection.
+        Wrapped agent instance ready for execution.
+
+    Raises:
+        ConfigurationError: If framework override is invalid.
     """
-    runtime_config = config or AgentShieldConfig()
-    runtime = AgentShieldRuntime(runtime_config)
+    runtime_config = AgentShieldConfig()
+    compiled_policy = PolicyCompiler.load(policy, config=runtime_config)
 
-    adapter_cls = AdapterRegistry.detect(agent)
-    if adapter_cls is not None:
-        adapter = adapter_cls()
-        ctx = AdapterContext(
-            runtime=runtime,
-            config=AdapterConfig(framework_name=adapter_cls.framework_name),
-            agent_id=agent_id,
-            session_id=runtime.session_id,
-        )
-        agent = adapter.wrap(agent, ctx)
-        logger.info("adapter_selected", framework=adapter_cls.framework_name)
+    forced_framework = _validate_framework_override(framework)
+    adapter: BaseAdapter
+    if forced_framework is None:
+        adapter = AdapterRegistry.detect(agent)
+        selected_framework = adapter.framework_name
+    else:
+        adapter = AdapterRegistry.get(forced_framework)
+        selected_framework = forced_framework
 
-    policy = policy or "monitor_only"
-
-    runtime.detection_engine.set_policy(policy)
-    logger.info(
-        "Policy attached via shield() | policy={}",
-        policy if isinstance(policy, str) else type(policy).__name__,
-    )
-
-    return runtime.wrap(
-        agent=agent,
-        tools=cast(list[BaseTool], tools or []),
-        memory=memory,
-        original_task=original_task,
+    agent_id = _resolve_agent_id(agent)
+    runtime = AgentShieldRuntime(
+        config=runtime_config,
+        framework=selected_framework,
         agent_id=agent_id,
-        framework=framework,
-        tool_trust_overrides=tool_trust_overrides,
+        compiled_policy=compiled_policy,
     )
+
+    adapter_context = AdapterContext(
+        runtime=runtime,
+        config=AdapterConfig(framework_name=selected_framework),
+        agent_id=agent_id,
+        session_id=runtime.session_id,
+    )
+    wrapped_framework_agent = adapter.wrap(agent, adapter_context)
+
+    logger.info(
+        "shield() configured | framework={} policy={} agent={}",
+        selected_framework,
+        compiled_policy.name,
+        agent_id,
+    )
+
+    return runtime.wrap(agent=wrapped_framework_agent, tools=tools or [], original_task="")

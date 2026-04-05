@@ -1,39 +1,35 @@
-__version__ = "0.1.0"
-__author__ = "Aditya Belhekar"
-__license__ = "MIT"
-
-# Public API — everything a user ever needs to import from agentshield
 from agentshield.runtime import shield, WrappedAgent, AgentShieldRuntime
-from agentshield.config import AgentShieldConfig
+from agentshield.adapters.registry import AdapterRegistry
 from agentshield.exceptions import (
     AgentShieldError,
-    ConfigurationError,
     PolicyViolationError,
     PromptInjectionError,
     GoalDriftError,
     ToolCallBlockedError,
-    PrivilegeEscalationError,
     MemoryPoisonError,
     BehavioralAnomalyError,
     InterAgentInjectionError,
+    ConfigurationError,
 )
+from agentshield.policy.models import BUILTIN_POLICIES
+from agentshield.config import AgentShieldConfig
 
+__version__ = "0.1.0"
 __all__ = [
-    "__version__",
-    "__author__",
-    "__license__",
     "shield",
     "WrappedAgent",
     "AgentShieldRuntime",
-    "AgentShieldConfig",
+    "AdapterRegistry",
     "AgentShieldError",
-    "ConfigurationError",
     "PolicyViolationError",
     "PromptInjectionError",
     "GoalDriftError",
     "ToolCallBlockedError",
-    "PrivilegeEscalationError",
     "MemoryPoisonError",
     "BehavioralAnomalyError",
     "InterAgentInjectionError",
+    "ConfigurationError",
+    "BUILTIN_POLICIES",
+    "AgentShieldConfig",
+    "__version__",
 ]

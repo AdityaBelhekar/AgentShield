@@ -2,25 +2,26 @@ from __future__ import annotations
 
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from typing import Any
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
 from backend.dependencies import get_config, get_event_store, get_redis_bridge
-from backend.routers import demo, events, sessions, ws
+from backend.routers import agents_router, alerts_router, audit_router, events_router
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Manage backend startup and shutdown lifecycle.
 
-    Startup:
-      1. Load BackendConfig
-      2. Initialize EventStore
-      3. Initialize RedisBridge
-      4. Register EventStore.add as handler on bridge
-      5. Start bridge
+        Startup:
+            1. Load BackendConfig
+            2. Initialize EventStore
+            3. Initialize RedisBridge
+            4. Register EventStore.add as handler on bridge
+            5. Start bridge
 
     Shutdown:
       1. Stop RedisBridge cleanly
@@ -66,10 +67,25 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    app.include_router(events.router)
-    app.include_router(sessions.router)
-    app.include_router(ws.router)
-    app.include_router(demo.router)
+
+    @app.get("/health")
+    async def health() -> dict[str, Any]:
+        """Return backend liveness and Redis connectivity status.
+
+        Returns:
+            Health payload.
+        """
+        redis_connected = await get_redis_bridge().is_connected()
+        return {
+            "status": "ok",
+            "version": "0.1.0",
+            "redis": redis_connected,
+        }
+
+    app.include_router(events_router.router)
+    app.include_router(agents_router.router)
+    app.include_router(alerts_router.router)
+    app.include_router(audit_router.router)
     return app
 
 

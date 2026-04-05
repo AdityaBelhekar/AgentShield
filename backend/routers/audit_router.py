@@ -4,7 +4,6 @@ from collections import defaultdict
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
-from loguru import logger
 
 from agentshield.events.models import BaseEvent, ThreatEvent
 from backend.dependencies import get_event_store
@@ -17,24 +16,24 @@ from backend.routers.schemas import (
     threat_to_response,
 )
 
-router = APIRouter(prefix="/api/sessions", tags=["sessions"])
+router = APIRouter(prefix="/api/audit", tags=["audit"])
 
 
 def _build_summary(session_id: str, events: list[BaseEvent]) -> SessionSummary:
-    """Build a SessionSummary from a list of session events.
+    """Build session summary from raw events.
 
     Args:
-        session_id: Session identifier key.
-        events: All events for one session.
+        session_id: Session identifier.
+        events: Session event list.
 
     Returns:
-        Aggregated session summary.
+        Aggregated summary model.
     """
-
     threat_events: list[ThreatEvent] = [event for event in events if isinstance(event, ThreatEvent)]
-    blocked_count: int = len([event for event in threat_events if event.mitigated])
-    first_seen: str = min(event.timestamp for event in events).isoformat()
-    last_seen: str = max(event.timestamp for event in events).isoformat()
+    blocked_count = len([event for event in threat_events if event.mitigated])
+    first_seen = min(event.timestamp for event in events).isoformat()
+    last_seen = max(event.timestamp for event in events).isoformat()
+
     return SessionSummary(
         session_id=session_id,
         agent_id=events[0].agent_id,
@@ -47,117 +46,105 @@ def _build_summary(session_id: str, events: list[BaseEvent]) -> SessionSummary:
 
 
 def _session_not_found(session_id: str) -> HTTPException:
-    """Create standardized not-found error for session endpoints.
+    """Build 404 error for missing session.
 
     Args:
-        session_id: Missing session identifier.
+        session_id: Missing session id.
 
     Returns:
-        HTTP 404 exception with required detail message.
+        FastAPI HTTPException.
     """
-
     return HTTPException(status_code=404, detail=f"Session {session_id} not found")
 
 
-@router.get("", response_model=list[SessionSummary])
+@router.get("/sessions", response_model=list[SessionSummary])
 async def list_sessions(
     store: Annotated[EventStore, Depends(get_event_store)],
 ) -> list[SessionSummary]:
-    """Return a summary for every distinct session in the store.
+    """Return summaries for all sessions.
 
     Args:
-        store: Event storage dependency.
+        store: Event store dependency.
 
     Returns:
-        List of aggregated summaries, one per session.
+        Session summaries.
     """
-
     events = await store.get_all()
     grouped: dict[str, list[BaseEvent]] = defaultdict(list)
     for event in events:
         grouped[str(event.session_id)].append(event)
 
-    summaries: list[SessionSummary] = [
+    return [
         _build_summary(session_id, session_events) for session_id, session_events in grouped.items()
     ]
-    logger.debug("GET /api/sessions | returned={}", len(summaries))
-    return summaries
 
 
-@router.get("/{session_id}", response_model=SessionSummary)
+@router.get("/sessions/{session_id}", response_model=SessionSummary)
 async def get_session_summary(
     session_id: str,
     store: Annotated[EventStore, Depends(get_event_store)],
 ) -> SessionSummary:
-    """Return the summary for a single session.
+    """Return a summary for one session.
 
     Args:
-        session_id: Session identifier.
-        store: Event storage dependency.
+        session_id: Session id.
+        store: Event store dependency.
 
     Returns:
-        Aggregated summary for the requested session.
+        Session summary.
 
     Raises:
-        HTTPException: If the session does not exist.
+        HTTPException: If session does not exist.
     """
-
     events = await store.get_by_session(session_id)
     if not events:
         raise _session_not_found(session_id)
-    summary: SessionSummary = _build_summary(session_id, events)
-    logger.debug("GET /api/sessions/{} | found=true", session_id)
-    return summary
+    return _build_summary(session_id, events)
 
 
-@router.get("/{session_id}/events", response_model=list[EventResponse])
+@router.get("/sessions/{session_id}/events", response_model=list[EventResponse])
 async def get_session_events(
     session_id: str,
     store: Annotated[EventStore, Depends(get_event_store)],
 ) -> list[EventResponse]:
-    """Return all events for a single session.
+    """Return all events for one session.
 
     Args:
-        session_id: Session identifier.
-        store: Event storage dependency.
+        session_id: Session id.
+        store: Event store dependency.
 
     Returns:
-        Serialized event list for the session.
+        Serialized events.
 
     Raises:
-        HTTPException: If the session does not exist.
+        HTTPException: If session does not exist.
     """
-
     events = await store.get_by_session(session_id)
     if not events:
         raise _session_not_found(session_id)
-    responses: list[EventResponse] = [event_to_response(event) for event in events]
-    logger.debug("GET /api/sessions/{}/events | returned={}", session_id, len(responses))
-    return responses
+    return [event_to_response(event) for event in events]
 
 
-@router.get("/{session_id}/threats", response_model=list[ThreatResponse])
+@router.get("/sessions/{session_id}/threats", response_model=list[ThreatResponse])
 async def get_session_threats(
     session_id: str,
     store: Annotated[EventStore, Depends(get_event_store)],
 ) -> list[ThreatResponse]:
-    """Return all ThreatEvents for a single session.
+    """Return all threat events for one session.
 
     Args:
-        session_id: Session identifier.
-        store: Event storage dependency.
+        session_id: Session id.
+        store: Event store dependency.
 
     Returns:
-        Serialized threat list for the session.
+        Serialized threats.
 
     Raises:
-        HTTPException: If the session does not exist.
+        HTTPException: If session does not exist.
     """
-
     events = await store.get_by_session(session_id)
     if not events:
         raise _session_not_found(session_id)
+
     threats: list[ThreatEvent] = [event for event in events if isinstance(event, ThreatEvent)]
-    responses: list[ThreatResponse] = [threat_to_response(event) for event in threats]
-    logger.debug("GET /api/sessions/{}/threats | returned={}", session_id, len(responses))
-    return responses
+    return [threat_to_response(event) for event in threats]

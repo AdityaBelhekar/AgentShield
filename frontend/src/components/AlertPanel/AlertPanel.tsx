@@ -128,7 +128,7 @@ export function AlertPanel({
       >
         {displayed.length === 0 ? (
           <div className="flex h-full min-h-24 items-center justify-center px-3 py-8">
-            <p className="text-sm text-gray-500">No alerts</p>
+            <p className="text-sm text-gray-500">No threats detected in this session.</p>
           </div>
         ) : (
           displayed.map((alert) => (
