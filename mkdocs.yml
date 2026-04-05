@@ -91,6 +91,7 @@ nav:
       - AgentShield Certify: redteam/certify.md
   - API Reference:
       - shield(): api/shield.md
+      - SDK Reference: sdk-reference.md
       - Runtime: api/runtime.md
       - Detection Engine: api/detection-engine.md
       - Events: api/events.md

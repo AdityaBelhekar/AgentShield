@@ -1,256 +1,215 @@
-<div align="center">
+[![PyPI](https://img.shields.io/pypi/v/agentshield-sdk?style=flat-square)](https://pypi.org/project/agentshield-sdk/)
+[![Python](https://img.shields.io/badge/python-3.11%2B-blue?style=flat-square)](https://python.org)
+[![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
+[![Docs](https://img.shields.io/badge/docs-live-blueviolet?style=flat-square)](https://AdityaBelhekar.github.io/AgentShield)
+[![Stars](https://img.shields.io/github/stars/AdityaBelhekar/AgentShield?style=flat-square)](https://github.com/AdityaBelhekar/AgentShield)
 
-<img src="https://capsule-render.vercel.app/api?type=waving&color=0:0D1117,100:00D4FF&height=200&section=header&text=AgentShield&fontSize=80&fontColor=ffffff&fontAlignY=38&desc=The%20security%20primitive%20the%20agent%20ecosystem%20is%20missing&descAlignY=65&descSize=18" width="100%"/>
+# AgentShield
 
-<br/>
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-00D4FF.svg?style=for-the-badge)](LICENSE)
-[![Python 3.11+](https://img.shields.io/badge/Python-3.11+-00D4FF.svg?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
-[![Version](https://img.shields.io/badge/Version-0.1.0--alpha-FF3B3B.svg?style=for-the-badge)](CHANGELOG.md)
-[![PRs Welcome](https://img.shields.io/badge/PRs-Welcome-00FF88.svg?style=for-the-badge)](CONTRIBUTING.md)
-[![Stars](https://img.shields.io/github/stars/AdityaBelhekar/AgentShield?style=for-the-badge&color=FFB800)](https://github.com/AdityaBelhekar/AgentShield/stargazers)
-
-<br/>
+<p align="center"><strong>The security primitive the agent ecosystem is missing.</strong></p>
 
 ```python
 from agentshield import shield
 
-protected = shield(your_agent, policy="no_exfiltration")
-protected.run("Summarize this document")  # ✓ Fully protected
+# Wrap any LangChain agent in one line
+protected = shield(your_langchain_agent, policy="no_exfiltration")
+
+# Fully protected — prompt injection, goal drift, tool chain escalation
+result = protected.run("Summarize and email this document")
 ```
 
-<br/>
+## What Is AgentShield
 
-> Built by **[Aditya Belhekar](https://github.com/AdityaBelhekar)**
+AgentShield is a runtime security SDK for AI agents. It is not an agent and not a chatbot. It is a defensive execution layer that wraps existing agent runtimes, intercepts execution events, scores threats, and enforces policy before unsafe behavior reaches tools, memory, or external channels.
 
-</div>
+This category was missing because agent frameworks optimized for capability and orchestration, not adversarial resilience. As a result, teams had no single primitive for prompt-level abuse detection, multi-step tool-chain control, and forensic-grade runtime telemetry in one place.
 
----
+## Threat Coverage
 
-## The Problem
+| Threat | Detection Method | Default Action | Detector Class |
+| --- | --- | --- | --- |
+| Prompt Injection | 3-layer (pattern + semantic + canary) | BLOCK | PromptInjectionDetector |
+| Goal Drift | Cosine distance + rolling average | ALERT | GoalDriftDetector |
+| Tool Chain Escalation | Forbidden sequence detection | BLOCK | ToolChainDetector |
+| Memory Poisoning | Z-score anomaly | ALERT | MemoryPoisonDetector |
+| Behavioral Anomalies | Agent DNA fingerprinting | FLAG | DNAAnomalyScorer |
+| Inter-Agent Injection | Provenance + trust graph | BLOCK | InterAgentMonitor |
 
-AI agents are being deployed into production with almost no security layer.
+## Original Research (not found elsewhere)
 
-They can be **prompt injected**. Their goals can be **hijacked**. Their memory can be **poisoned**. They can be chained into **exfiltrating data** without the developer ever knowing.
+- **Agent DNA Fingerprinting**: Learns a per-agent behavioral baseline from clean sessions and flags statistically meaningful deviations.
+- **Canary Injection**: Uses cryptographic canary tokens to confirm active instruction hijack with near-zero ambiguity.
+- **Prompt Provenance Tracking**: Tags context by trust origin (`TRUSTED`, `INTERNAL`, `EXTERNAL`, `UNTRUSTED`) before model execution.
+- **Cryptographic Audit Trail**: Hash-chains security events into tamper-evident JSONL for verification and incident reconstruction.
+- **Red Team CLI**: Runs curated adversarial scenarios against live agents and emits structured security reports.
+- **AgentShield Certify**: Converts red-team outcomes into reproducible certification artifacts and badge output.
 
-The ecosystem is building agents faster than it is securing them.
-
-**AgentShield fixes that.**
-
----
-
-## What It Does
-
-AgentShield is a **pip-installable Python SDK** that wraps any AI agent and monitors its entire execution pipeline in real time — detecting and blocking attacks **without touching your agent code**.
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                      YOUR AGENT CODE                         │
-│                (LangChain / AutoGen / CrewAI)                │
-└──────────────────────────┬──────────────────────────────────┘
-                           │  shield()
-┌──────────────────────────▼──────────────────────────────────┐
-│                INTERCEPTOR LAYER                             │
-│          Tool hooks │ LLM hooks │ Memory hooks               │
-└──────────────────────────┬──────────────────────────────────┘
-                           │  events
-┌──────────────────────────▼──────────────────────────────────┐
-│                 DETECTION ENGINE                             │
-│   Injection │ Drift │ Chain │ Poison │ DNA │ Provenance      │
-└──────────────────────────┬──────────────────────────────────┘
-                           │  threats
-┌──────────────────────────▼──────────────────────────────────┐
-│           POLICY COMPILER + CRYPTOGRAPHIC AUDIT              │
-│         YAML rules │ Hash-chained tamper-proof logs          │
-└──────────────────────────┬──────────────────────────────────┘
-                           │  Redis pub/sub
-┌──────────────────────────▼──────────────────────────────────┐
-│               REACT SECURITY CONSOLE                         │
-│       Live graph │ Threat alerts │ Forensic trace            │
-└─────────────────────────────────────────────────────────────┘
-```
-
----
-
-## Attack Vectors Defended
-
-| Attack | How It Works | How AgentShield Stops It |
-|--------|-------------|--------------------------|
-| 🔴 **Prompt Injection** | Malicious instructions hidden in tool output or user input | Pattern matching + semantic similarity + canary tokens |
-| 🔴 **Goal Drift** | Agent slowly deviates from original task | Embedding cosine distance from original task |
-| 🔴 **Tool Chain Escalation** | read_file → read_file → send_report = data exfiltration | Forbidden sequence detection |
-| 🔴 **Memory Poisoning** | Corrupting agent memory across sessions | Statistical z-score anomaly detection |
-| 🟡 **Behavioral Anomalies** | Anything that deviates from normal for YOUR agent | Agent DNA fingerprinting |
-| 🔴 **Inter-Agent Injection** | Agent A manipulating Agent B via shared memory | Provenance tracking across agent boundaries |
-
----
-
-## What Makes This Different
-
-<table>
-<tr>
-<td width="50%">
-
-### 🧬 Agent DNA Fingerprinting
-AgentShield learns what "normal" looks like for **your specific agent** over time. Behavioral deviations are detected even without known attack signatures — no labeled training data required.
-
-</td>
-<td width="50%">
-
-### 🕵️ Canary Injection
-Invisible honeypot tokens are silently embedded in agent context. If the LLM echoes them back, an active manipulation is detected with **near-zero false positives**.
-
-</td>
-</tr>
-<tr>
-<td width="50%">
-
-### 🔍 Prompt Provenance Tracking
-Every piece of text entering the LLM context is tagged with its **origin and trust level**. Content from untrusted URLs gets extra scrutiny before reaching the model.
-
-</td>
-<td width="50%">
-
-### 🔐 Cryptographic Audit Trail
-Every event is hash-chained to the previous one. **Tamper-evident logs** suitable for compliance, incident response, and legal defensibility.
-
-</td>
-</tr>
-<tr>
-<td width="50%">
-
-### ⚔️ Red Team CLI
-Attack your own agent before attackers do.
-`agentshield redteam --agent ./my_agent.py`
-Generates a full security report with bypass findings.
-
-</td>
-<td width="50%">
-
-### 🌐 Multi-Framework Support
-LangChain today. LlamaIndex, AutoGen, CrewAI, raw OpenAI and Anthropic API coming in v0.5.
-
-</td>
-</tr>
-</table>
-
----
-
-## Quickstart
+## Installation
 
 ```bash
-pip install agentshield
+pip install agentshield-sdk
+```
+
+| Extra | Installs | When to use |
+| --- | --- | --- |
+| [redis] | redis, hiredis | pub/sub + dashboard |
+| [otel] | opentelemetry-* | observability export |
+| [all] | everything | full feature set |
+
+## Quick Example - 3 Policies
+
+```python
+# 1. Monitor only (zero risk, great for first run)
+protected = shield(agent, policy="monitor_only")
 ```
 
 ```python
-from agentshield import shield
-from agentshield.config import AgentShieldConfig
-
-# Works with your existing agent — zero changes to agent code
-agent = your_existing_langchain_agent()
-
-# Wrap it
+# 2. Block exfiltration attempts
 protected = shield(agent, policy="no_exfiltration")
-
-# Run it — fully monitored and protected
-result = protected.run("Summarize the quarterly report")
 ```
 
-### Run the full stack locally
-
-```bash
-git clone https://github.com/AdityaBelhekar/AgentShield
-cd AgentShield
-cp .env.example .env        # add your API keys
-make docker-up              # Redis + backend + frontend
+```python
+# 3. Maximum security
+protected = shield(agent, policy="strict")
 ```
 
-Open **http://localhost:5173** — live security console.
+```python
+# 4. Custom YAML policy
+protected = shield(agent, tools=tools, policy="./my_policy.yaml")
+```
 
----
+## Catching Violations
+
+```python
+from agentshield import shield
+from agentshield.exceptions import PolicyViolationError, PromptInjectionError
+
+protected = shield(agent, policy="strict")
+
+try:
+  result = protected.run(user_input)
+except PromptInjectionError as e:
+  print(f"Injection blocked: {e}")
+except PolicyViolationError as e:
+  print(f"Policy violation: {e}")
+```
 
 ## Built-in Policies
 
-| Policy | What It Does |
-|--------|-------------|
-| `no_exfiltration` | Blocks all read → send tool chain patterns |
-| `strict` | Everything in no_exfiltration + lower drift threshold |
-| `monitor_only` | Detects everything, blocks nothing. Safe for production rollout. |
+| Policy | Blocks | Best For |
+| --- | --- | --- |
+| monitor_only | Nothing (observe only) | Testing, onboarding |
+| no_exfiltration | read→send chains, high injection | Production agents |
+| strict | Medium drift, execute tools | High-security envs |
 
-Or write your own in YAML:
+## Integrations
 
-```yaml
-version: "2.0"
-agent_id: "customer-support-bot"
+[LangChain](https://python.langchain.com/) | [LlamaIndex](https://www.llamaindex.ai/) | [AutoGen](https://github.com/microsoft/autogen) | [OpenAI](https://platform.openai.com/) | [Anthropic](https://www.anthropic.com/)
 
-capabilities:
-  tools:
-    allowed: ["search_kb", "lookup_order", "send_email"]
-    denied: ["read_file", "execute_code"]
-
-on_threat:
-  PROMPT_INJECTION:
-    action: BLOCK
-    notify: ["slack:#security-alerts"]
-  GOAL_DRIFT:
-    high: BLOCK
-    medium: ALERT
+```python
+# LangChain
+from agentshield import shield; protected = shield(langchain_agent, policy="monitor_only")
 ```
 
----
-
-## Project Roadmap
-
-```
-✅ Phase 0   — Foundation & tooling
-🔄 Phase 1   — Event system & data models
-⬜ Phase 2   — Interceptor layer (LangChain)
-⬜ Phase 3   — Core detection engine
-⬜ Phase 4   — Advanced detection (DNA, Canary, Provenance)
-⬜ Phase 5   — Policy compiler
-⬜ Phase 6   — Backend API + Redis bridge
-⬜ Phase 7   — React security console
-⬜ Phase 8   — Cryptographic audit trail
-⬜ Phase 9   — Red Team CLI
-⬜ Phase 10  — Multi-framework adapters
-⬜ Phase 11  — Observability & integrations
-⬜ Phase 12  — Docs, PyPI release, GitHub Actions
+```python
+# LlamaIndex
+from agentshield import shield; protected = shield(llamaindex_agent, policy="monitor_only")
 ```
 
----
+```python
+# AutoGen
+from agentshield import shield; protected = shield(autogen_agent, policy="monitor_only")
+```
 
-## Contributing
+```python
+# OpenAI
+from agentshield import shield; protected = shield(openai_client, policy="monitor_only")
+```
 
-Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) first.
+```python
+# Anthropic
+from agentshield import shield; protected = shield(anthropic_client, policy="monitor_only")
+```
+
+## Red Team CLI
 
 ```bash
-git clone https://github.com/AdityaBelhekar/AgentShield
-pip install -e ".[dev]"
-make lint && make typecheck
+# List available attack scenarios
+agentshield attack list
+
+# Run a specific attack
+agentshield attack run --scenario prompt_injection --target my_agent.py
+
+# Generate certification report
+agentshield certify --agent my_agent.py --policy no_exfiltration
 ```
 
----
+## Architecture Diagram
 
-## Security
+```text
+User Input
+  |
+  v
+┌─────────────────────────────────────────────────────┐
+│                  AgentShield Runtime                │
+│                                                     │
+│  LLM Hook -> Tool Hook -> Memory Hook              │
+│       |           |           |                     │
+│       └───────────┴───────────┘                     │
+│                   |                                  │
+│            DetectionEngine                           │
+│     ┌──────────────────────────────┐                 │
+│     │  Canary -> DNA -> Provenance │                 │
+│     │  PromptInjection Detector    │                 │
+│     │  GoalDrift Detector          │                 │
+│     │  ToolChain Detector          │                 │
+│     │  MemoryPoison Detector       │                 │
+│     │  InterAgent Monitor          │                 │
+│     └──────────────────────────────┘                 │
+│                   |                                  │
+│           Cross-Correlation                          │
+│                   |                                  │
+│           PolicyEvaluator                            │
+│                   |                                  │
+│          BLOCK / ALERT / LOG                         │
+└─────────────────────────────────────────────────────┘
+  |
+  v
+Agent continues (or PolicyViolationError raised)
+```
 
-Found a vulnerability? **Do not open a public issue.**  
-Report privately → belhekaraditya96@gmail.com  
-See [SECURITY.md](SECURITY.md) for full policy.
+## Documentation
 
----
+- Full Docs: https://AdityaBelhekar.github.io/AgentShield
+- Quickstart: ./QUICKSTART.md
+- SDK Reference: ./docs/sdk-reference.md
+- Contributing: ./CONTRIBUTING.md
 
-## License
+## Exception Hierarchy
 
-MIT © [Aditya Belhekar](https://github.com/AdityaBelhekar)
+```text
+AgentShieldError
+├── ConfigurationError
+├── AdapterError
+├── InterceptorError
+├── DetectionError
+├── EventEmissionError
+├── RedisConnectionError
+├── ProvenanceError
+├── CanaryError
+├── DNAError
+├── AuditChainError
+└── PolicyViolationError
+  ├── ToolCallBlockedError
+  │   └── PrivilegeEscalationError
+  ├── GoalDriftError
+  ├── PromptInjectionError
+  ├── MemoryPoisonError
+  ├── BehavioralAnomalyError
+  └── InterAgentInjectionError
+```
 
----
+## License + Author
 
-<div align="center">
-
-<img src="https://capsule-render.vercel.app/api?type=waving&color=0:00D4FF,100:0D1117&height=100&section=footer" width="100%"/>
-
-**If this helped you secure your agents, drop a ⭐**
-
-[GitHub](https://github.com/AdityaBelhekar/AgentShield) · [Report Bug](https://github.com/AdityaBelhekar/AgentShield/issues) · [Request Feature](https://github.com/AdityaBelhekar/AgentShield/issues)
-
-</div>
+MIT License. Built by Aditya Belhekar.
+AgentShield is and will always remain free and open-source.
