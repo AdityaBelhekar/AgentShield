@@ -1,0 +1,106 @@
+site_name: AgentShield
+site_description: "The security primitive the agent ecosystem is missing."
+site_url: https://AdityaBelhekar.github.io/AgentShield
+repo_url: https://github.com/AdityaBelhekar/AgentShield
+repo_name: AdityaBelhekar/AgentShield
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  palette:
+    - scheme: slate
+      primary: deep orange
+      accent: amber
+  font:
+    text: Inter
+    code: JetBrains Mono
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - search.highlight
+    - search.suggest
+    - content.code.copy
+    - content.code.annotate
+  icon:
+    repo: fontawesome/brands/github
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            docstring_style: google
+            show_source: true
+            show_root_heading: true
+            heading_level: 2
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - attr_list
+  - md_in_html
+  - tables
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Installation: getting-started/installation.md
+      - Quickstart: getting-started/quickstart.md
+      - How It Works: getting-started/how-it-works.md
+  - Threat Coverage:
+      - Overview: threats/overview.md
+      - Prompt Injection: threats/prompt-injection.md
+      - Goal Drift: threats/goal-drift.md
+      - Tool Chain Escalation: threats/tool-chain-escalation.md
+      - Memory Poisoning: threats/memory-poisoning.md
+      - Behavioral Anomalies: threats/behavioral-anomalies.md
+      - Inter-Agent Injection: threats/inter-agent-injection.md
+  - Research Features:
+      - Agent DNA Fingerprinting: research/dna-fingerprinting.md
+      - Canary Injection: research/canary-injection.md
+      - Prompt Provenance Tracking: research/provenance-tracking.md
+      - Cryptographic Audit Trail: research/audit-trail.md
+  - Policies:
+      - Built-in Policies: policies/builtin.md
+      - Custom YAML Policies: policies/custom.md
+  - Integrations:
+      - LangChain: integrations/langchain.md
+      - LlamaIndex: integrations/llamaindex.md
+      - AutoGen: integrations/autogen.md
+      - Raw OpenAI / Anthropic: integrations/openai-anthropic.md
+  - Observability:
+      - Dashboard: observability/dashboard.md
+      - OpenTelemetry: observability/opentelemetry.md
+      - Slack & PagerDuty: observability/webhooks.md
+      - Grafana & SIEM: observability/grafana-siem.md
+  - Red Team CLI:
+      - Overview: redteam/overview.md
+      - Running Attacks: redteam/running-attacks.md
+      - AgentShield Certify: redteam/certify.md
+  - API Reference:
+      - shield(): api/shield.md
+      - Runtime: api/runtime.md
+      - Detection Engine: api/detection-engine.md
+      - Events: api/events.md
+      - Policy: api/policy.md
+      - Exceptions: api/exceptions.md
+  - Contributing: contributing.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/AdityaBelhekar/AgentShield
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/agentshield-sdk/
