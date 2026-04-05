@@ -62,14 +62,14 @@ jobs:
 
             Install via pip:
             ```bash
-            pip install agentshield-sdk==${{ steps.version.outputs.value }}
+            pip install agentshield-x==${{ steps.version.outputs.value }}
             ```
 
             Full changelog: [CHANGELOG.md](CHANGELOG.md)
             Docs: https://AdityaBelhekar.github.io/AgentShield
 
 # One-time PyPI OIDC setup:
-# 1) Go to https://pypi.org/manage/project/agentshield-sdk/settings/publishing/
+# 1) Go to https://pypi.org/manage/project/agentshield-x/settings/publishing/
 # 2) Add trusted publisher:
 #    - Owner: AdityaBelhekar
 #    - Repository: AgentShield

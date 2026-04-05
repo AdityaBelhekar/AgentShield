@@ -1,4 +1,4 @@
-[![PyPI](https://img.shields.io/pypi/v/agentshield-sdk?style=flat-square)](https://pypi.org/project/agentshield-sdk/)
+[![PyPI](https://img.shields.io/pypi/v/agentshield-x?style=flat-square)](https://pypi.org/project/agentshield-x/)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue?style=flat-square)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
 [![Docs](https://img.shields.io/badge/docs-live-blueviolet?style=flat-square)](https://AdityaBelhekar.github.io/AgentShield)
@@ -47,7 +47,7 @@ This category was missing because agent frameworks optimized for capability and 
 ## Installation
 
 ```bash
-pip install agentshield-sdk
+pip install agentshield-x
 ```
 
 | Extra | Installs | When to use |

@@ -6,7 +6,7 @@
 - Install package:
 
 ```bash
-pip install agentshield-sdk
+pip install agentshield-x
 ```
 
 - Optional Redis for event pub/sub + dashboard:

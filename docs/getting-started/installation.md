@@ -9,21 +9,21 @@
 ## Install AgentShield
 
 ```bash
-pip install agentshield-sdk
+pip install agentshield-x
 ```
 
 ## Optional Extras
 
 ```bash
-pip install "agentshield-sdk[redis]"
-pip install "agentshield-sdk[otel]"
-pip install "agentshield-sdk[all]"
+pip install "agentshield-x[redis]"
+pip install "agentshield-x[otel]"
+pip install "agentshield-x[all]"
 ```
 
 If you are using the current public build where OpenTelemetry extras are published under `observability`, use:
 
 ```bash
-pip install "agentshield-sdk[observability]"
+pip install "agentshield-x[observability]"
 ```
 
 ## Redis Setup
