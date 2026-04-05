@@ -63,9 +63,7 @@ class WebhookConfig(BaseModel):
         """
         normalized = value.upper()
         if normalized not in _ALLOWED_SEVERITIES:
-            raise ConfigurationError(
-                "Severity must be one of: INFO LOW MEDIUM HIGH CRITICAL"
-            )
+            raise ConfigurationError("Severity must be one of: INFO LOW MEDIUM HIGH CRITICAL")
         return normalized
 
     @field_validator("slack_cooldown_seconds")
@@ -83,9 +81,7 @@ class WebhookConfig(BaseModel):
             ConfigurationError: If value is outside 1..3600.
         """
         if value < 1 or value > 3600:
-            raise ConfigurationError(
-                "slack_cooldown_seconds must be between 1 and 3600"
-            )
+            raise ConfigurationError("slack_cooldown_seconds must be between 1 and 3600")
         return value
 
     @field_validator("pagerduty_cooldown_seconds")
@@ -103,9 +99,7 @@ class WebhookConfig(BaseModel):
             ConfigurationError: If value is outside 1..3600.
         """
         if value < 1 or value > 3600:
-            raise ConfigurationError(
-                "pagerduty_cooldown_seconds must be between 1 and 3600"
-            )
+            raise ConfigurationError("pagerduty_cooldown_seconds must be between 1 and 3600")
         return value
 
     @field_validator("max_retries")
@@ -138,9 +132,7 @@ class WebhookConfig(BaseModel):
         """
         if self.slack_enabled:
             if not self.slack_webhook_url:
-                raise ConfigurationError(
-                    "slack_webhook_url is required when slack_enabled is true"
-                )
+                raise ConfigurationError("slack_webhook_url is required when slack_enabled is true")
             if not self.slack_webhook_url.startswith("https://hooks.slack.com/"):
                 raise ConfigurationError(
                     "slack_webhook_url must start with 'https://hooks.slack.com/'"
@@ -152,8 +144,6 @@ class WebhookConfig(BaseModel):
                     "pagerduty_routing_key is required when pagerduty_enabled is true"
                 )
             if len(self.pagerduty_routing_key) != 32:
-                raise ConfigurationError(
-                    "PagerDuty routing_key must be exactly 32 characters"
-                )
+                raise ConfigurationError("PagerDuty routing_key must be exactly 32 characters")
 
         return self

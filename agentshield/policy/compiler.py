@@ -166,8 +166,7 @@ class PolicyCompiler:
             )
 
         raise ConfigurationError(
-            f"Invalid policy type: {type(policy).__name__}. "
-            "Expected str, PolicyConfig, or None."
+            f"Invalid policy type: {type(policy).__name__}. " "Expected str, PolicyConfig, or None."
         )
 
     def load_builtin(self, name: str) -> PolicyConfig:
@@ -185,8 +184,7 @@ class PolicyCompiler:
 
         if name not in BUILTIN_POLICIES:
             raise ConfigurationError(
-                f"Unknown built-in policy: {name!r}. "
-                f"Available: {list(BUILTIN_POLICIES.keys())}"
+                f"Unknown built-in policy: {name!r}. " f"Available: {list(BUILTIN_POLICIES.keys())}"
             )
         return BUILTIN_POLICIES[name]
 
@@ -211,21 +209,16 @@ class PolicyCompiler:
             import yaml
         except ImportError as exc:
             raise ConfigurationError(
-                "PyYAML is required to load policy YAML files. "
-                "Install with: pip install pyyaml"
+                "PyYAML is required to load policy YAML files. " "Install with: pip install pyyaml"
             ) from exc
 
         try:
             with file_path.open("r", encoding="utf-8") as file:
                 raw = yaml.safe_load(file)
         except OSError as exc:
-            raise ConfigurationError(
-                f"Failed to read policy YAML: {path} - {exc}"
-            ) from exc
+            raise ConfigurationError(f"Failed to read policy YAML: {path} - {exc}") from exc
         except yaml.YAMLError as exc:
-            raise ConfigurationError(
-                f"Failed to parse policy YAML: {path} - {exc}"
-            ) from exc
+            raise ConfigurationError(f"Failed to parse policy YAML: {path} - {exc}") from exc
 
         if not isinstance(raw, dict):
             raise ConfigurationError(
@@ -235,9 +228,7 @@ class PolicyCompiler:
         try:
             policy_config = PolicyConfig.model_validate(raw)
         except ValueError as exc:
-            raise ConfigurationError(
-                f"Policy YAML validation failed: {path} - {exc}"
-            ) from exc
+            raise ConfigurationError(f"Policy YAML validation failed: {path} - {exc}") from exc
 
         logger.info(
             "Policy loaded from YAML | path={} name={} rules={}",

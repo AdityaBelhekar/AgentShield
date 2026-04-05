@@ -1,0 +1,77 @@
+name: Publish
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment: pypi
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install package for version check
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Verify tag matches package version
+        run: |
+          python -c "import agentshield, sys
+          tag = '${{ github.ref_name }}'
+          version = agentshield.__version__
+          assert tag == f'v{version}', f'Tag {tag} does not match package version {version}'
+          print(f'Version match confirmed: {version}')"
+
+      - name: Extract version for release notes
+        id: version
+        shell: bash
+        run: echo "value=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install hatchling build
+
+      - name: Build distribution
+        run: python -m build
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://upload.pypi.org/legacy/
+          verbose: true
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          body: |
+            ## AgentShield ${{ github.ref_name }}
+
+            Install via pip:
+            ```bash
+            pip install agentshield-sdk==${{ steps.version.outputs.value }}
+            ```
+
+            Full changelog: [CHANGELOG.md](CHANGELOG.md)
+            Docs: https://AdityaBelhekar.github.io/AgentShield
+
+# One-time PyPI OIDC setup:
+# 1) Go to https://pypi.org/manage/project/agentshield-sdk/settings/publishing/
+# 2) Add trusted publisher:
+#    - Owner: AdityaBelhekar
+#    - Repository: AgentShield
+#    - Workflow: publish.yml
+#    - Environment: pypi

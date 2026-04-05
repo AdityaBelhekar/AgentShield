@@ -59,14 +59,10 @@ class WebhookNotifier:
         self._active = False
 
         if not _HTTPX_AVAILABLE:
-            logger.warning(
-                "httpx not installed. Install agentshield-sdk[notifications]."
-            )
+            logger.warning("httpx not installed. Install agentshield-sdk[notifications].")
             return
 
-        if not (
-            self._webhook_config.slack_enabled or self._webhook_config.pagerduty_enabled
-        ):
+        if not (self._webhook_config.slack_enabled or self._webhook_config.pagerduty_enabled):
             logger.warning("WebhookNotifier: neither Slack nor PagerDuty enabled.")
             return
 
@@ -157,9 +153,7 @@ class WebhookNotifier:
                 except asyncio.CancelledError:
                     raise
                 except Exception as exc:
-                    logger.warning(
-                        "WebhookNotifier listen loop warning | error={}", exc
-                    )
+                    logger.warning("WebhookNotifier listen loop warning | error={}", exc)
         except asyncio.CancelledError:
             logger.debug("WebhookNotifier listen loop cancelled")
         except Exception as exc:
@@ -168,9 +162,7 @@ class WebhookNotifier:
             try:
                 unsubscribe_method = getattr(pubsub, "unsubscribe", None)
                 if callable(unsubscribe_method):
-                    unsubscribe_result = unsubscribe_method(
-                        self._webhook_config.redis_channel
-                    )
+                    unsubscribe_result = unsubscribe_method(self._webhook_config.redis_channel)
                     if asyncio.iscoroutine(unsubscribe_result):
                         await unsubscribe_result
             except Exception as exc:

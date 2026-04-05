@@ -126,9 +126,7 @@ class ProvenanceContext:
             List of UNTRUSTED ContentRecords.
         """
         return [
-            record
-            for record in self.records.values()
-            if record.trust_level == TrustLevel.UNTRUSTED
+            record for record in self.records.values() if record.trust_level == TrustLevel.UNTRUSTED
         ]
 
 

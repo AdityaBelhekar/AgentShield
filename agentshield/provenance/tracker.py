@@ -19,9 +19,7 @@ from agentshield.events.models import (
 from agentshield.exceptions import ProvenanceError
 from agentshield.provenance.models import ContentRecord, ProvenanceContext, hash_content
 
-URL_PATTERN = re.compile(
-    r"https?://[^\s\"'<>]+" r"|www\.[a-zA-Z0-9][a-zA-Z0-9\-]*\.[a-zA-Z]{2,}"
-)
+URL_PATTERN = re.compile(r"https?://[^\s\"'<>]+" r"|www\.[a-zA-Z0-9][a-zA-Z0-9\-]*\.[a-zA-Z]{2,}")
 
 INTERNAL_TOOL_PATTERNS: list[str] = [
     "memory",
@@ -138,9 +136,7 @@ class ProvenanceTracker:
             if event.event_type == EventType.LLM_PROMPT and isinstance(event, LLMEvent):
                 return self._tag_llm_prompt(event, context)
 
-            if event.event_type == EventType.MEMORY_READ and isinstance(
-                event, MemoryEvent
-            ):
+            if event.event_type == EventType.MEMORY_READ and isinstance(event, MemoryEvent):
                 return self._tag_memory_content(event, context)
 
             return None
@@ -295,9 +291,7 @@ class ProvenanceTracker:
                 for key, value in event.prompt_trust_levels.items()
                 if value == TrustLevel.UNTRUSTED.value
             ]
-            trust_level = (
-                TrustLevel.UNTRUSTED if untrusted_sources else TrustLevel.TRUSTED
-            )
+            trust_level = TrustLevel.UNTRUSTED if untrusted_sources else TrustLevel.TRUSTED
         else:
             trust_level = TrustLevel.TRUSTED
 

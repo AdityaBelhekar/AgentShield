@@ -87,9 +87,7 @@ class CEFFormatter:
             Complete CEF-formatted line.
         """
         normalized_severity = severity.upper()
-        cef_severity = (
-            10 if canary_triggered else _SEVERITY_MAP.get(normalized_severity, 5)
-        )
+        cef_severity = 10 if canary_triggered else _SEVERITY_MAP.get(normalized_severity, 5)
         name = _THREAT_NAMES.get(threat_type, threat_type)
 
         extensions = (

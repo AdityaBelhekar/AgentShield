@@ -187,9 +187,7 @@ class AuditChainExporter:
                 json.dump(report, file_handle, indent=2, sort_keys=True)
                 file_handle.write("\n")
         except (OSError, TypeError, ValueError) as exc:
-            raise AuditChainError(
-                f"Failed to export session audit report: {exc}"
-            ) from exc
+            raise AuditChainError(f"Failed to export session audit report: {exc}") from exc
 
         return report
 

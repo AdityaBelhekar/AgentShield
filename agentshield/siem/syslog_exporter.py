@@ -165,9 +165,7 @@ class SyslogSIEMExporter:
                         if asyncio.iscoroutine(legacy_result):
                             await legacy_result
             except Exception as exc:
-                logger.warning(
-                    "SyslogSIEMExporter pubsub close warning | error={}", exc
-                )
+                logger.warning("SyslogSIEMExporter pubsub close warning | error={}", exc)
 
     def _process_message(self, raw: dict[str, Any]) -> None:
         """Process one raw threat event payload.
@@ -230,9 +228,7 @@ class SyslogSIEMExporter:
         try:
             if self._config.syslog_protocol == "udp":
                 with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
-                    sock.sendto(
-                        data, (self._config.syslog_host, self._config.syslog_port)
-                    )
+                    sock.sendto(data, (self._config.syslog_host, self._config.syslog_port))
             else:
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
                     sock.settimeout(5.0)

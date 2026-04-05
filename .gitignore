@@ -53,3 +53,17 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+
+# AgentShield — never commit these
+scratch/
+dist/
+build/
+*.egg-info/
+.mypy_cache/
+.ruff_cache/
+__pycache__/
+*.pyc
+.coverage
+htmlcov/
+agentshield_audit.jsonl
+site/

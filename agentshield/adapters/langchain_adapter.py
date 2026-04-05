@@ -140,13 +140,9 @@ class LangChainAdapter(BaseAdapter):
                 if callable(add_handler):
                     add_handler(llm_interceptor)
                 else:
-                    raise AdapterError(
-                        "LangChain callback_manager is missing add_handler()"
-                    )
+                    raise AdapterError("LangChain callback_manager is missing add_handler()")
             else:
-                raise AdapterError(
-                    "LangChain agent must expose callbacks or callback_manager"
-                )
+                raise AdapterError("LangChain agent must expose callbacks or callback_manager")
         except AdapterError:
             raise
         except (AttributeError, RuntimeError, TypeError, ValueError) as exc:

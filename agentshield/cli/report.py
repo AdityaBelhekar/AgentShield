@@ -153,9 +153,7 @@ class ReportSerializer:
             json_payload = ReportSerializer.to_json(report)
             path.write_text(f"{json_payload}\n", encoding="utf-8")
         except OSError as exc:
-            raise AgentShieldError(
-                f"Failed to write report to '{path}': {exc}"
-            ) from exc
+            raise AgentShieldError(f"Failed to write report to '{path}': {exc}") from exc
 
     @staticmethod
     def load(path: Path) -> RedTeamReport:

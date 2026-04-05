@@ -100,9 +100,7 @@ class SIEMConfig(BaseModel):
         """
         normalized = value.upper()
         if normalized not in _ALLOWED_SEVERITIES:
-            raise ConfigurationError(
-                "min_severity must be one of: INFO LOW MEDIUM HIGH CRITICAL"
-            )
+            raise ConfigurationError("min_severity must be one of: INFO LOW MEDIUM HIGH CRITICAL")
         return normalized
 
     @field_validator("http_max_retries")
@@ -135,15 +133,11 @@ class SIEMConfig(BaseModel):
         """
         if self.http_enabled:
             if not self.http_endpoint:
-                raise ConfigurationError(
-                    "http_endpoint is required when http_enabled is true"
-                )
+                raise ConfigurationError("http_endpoint is required when http_enabled is true")
             if not (
                 self.http_endpoint.startswith("http://")
                 or self.http_endpoint.startswith("https://")
             ):
-                raise ConfigurationError(
-                    "http_endpoint must start with 'http://' or 'https://'"
-                )
+                raise ConfigurationError("http_endpoint must start with 'http://' or 'https://'")
 
         return self

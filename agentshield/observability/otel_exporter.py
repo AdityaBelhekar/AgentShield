@@ -10,34 +10,64 @@ from loguru import logger
 from agentshield.observability.otel_config import OTelConfig
 
 _OTEL_AVAILABLE: bool = False
+metrics: Any | None = None
+trace: Any | None = None
+TracerProvider: Any | None = None
+BatchSpanProcessor: Any | None = None
+MeterProvider: Any | None = None
+PeriodicExportingMetricReader: Any | None = None
+Resource: Any | None = None
+SERVICE_NAME: Any | None = None
+SERVICE_VERSION: Any | None = None
+OTLPSpanExporter: Any | None = None
+OTLPMetricExporter: Any | None = None
+Status: Any | None = None
+StatusCode: Any | None = None
+
 try:
-    from opentelemetry import metrics, trace
+    from opentelemetry import metrics as _metrics
+    from opentelemetry import trace as _trace
     from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import (
-        OTLPMetricExporter,
+        OTLPMetricExporter as _OTLPMetricExporter,
     )
-    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-    from opentelemetry.sdk.metrics import MeterProvider
-    from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
-    from opentelemetry.sdk.resources import SERVICE_NAME, SERVICE_VERSION, Resource
-    from opentelemetry.sdk.trace import TracerProvider
-    from opentelemetry.sdk.trace.export import BatchSpanProcessor
-    from opentelemetry.trace import Status, StatusCode
+    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (
+        OTLPSpanExporter as _OTLPSpanExporter,
+    )
+    from opentelemetry.sdk.metrics import MeterProvider as _MeterProvider
+    from opentelemetry.sdk.metrics.export import (
+        PeriodicExportingMetricReader as _PeriodicExportingMetricReader,
+    )
+    from opentelemetry.sdk.resources import (
+        SERVICE_NAME as _SERVICE_NAME,
+    )
+    from opentelemetry.sdk.resources import (
+        SERVICE_VERSION as _SERVICE_VERSION,
+    )
+    from opentelemetry.sdk.resources import (
+        Resource as _Resource,
+    )
+    from opentelemetry.sdk.trace import TracerProvider as _TracerProvider
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor as _BatchSpanProcessor
+    from opentelemetry.trace import Status as _Status
+    from opentelemetry.trace import StatusCode as _StatusCode
+
+    metrics = _metrics
+    trace = _trace
+    OTLPMetricExporter = _OTLPMetricExporter
+    OTLPSpanExporter = _OTLPSpanExporter
+    MeterProvider = _MeterProvider
+    PeriodicExportingMetricReader = _PeriodicExportingMetricReader
+    SERVICE_NAME = _SERVICE_NAME
+    SERVICE_VERSION = _SERVICE_VERSION
+    Resource = _Resource
+    TracerProvider = _TracerProvider
+    BatchSpanProcessor = _BatchSpanProcessor
+    Status = _Status
+    StatusCode = _StatusCode
 
     _OTEL_AVAILABLE = True
 except ImportError:
-    metrics = None
-    trace = None
-    TracerProvider = None
-    BatchSpanProcessor = None
-    MeterProvider = None
-    PeriodicExportingMetricReader = None
-    Resource = None
-    SERVICE_NAME = None
-    SERVICE_VERSION = None
-    OTLPSpanExporter = None
-    OTLPMetricExporter = None
-    Status = None
-    StatusCode = None
+    _OTEL_AVAILABLE = False
 
 
 class OTelExporter:
@@ -368,9 +398,7 @@ class OTelExporter:
             if not session_id:
                 return
 
-            threat_count = self._as_int(
-                raw.get("threat_count", raw.get("threats_detected", 0))
-            )
+            threat_count = self._as_int(raw.get("threat_count", raw.get("threats_detected", 0)))
             tool_call_count = self._as_int(
                 raw.get("tool_call_count", raw.get("tool_calls_total", 0))
             )
@@ -452,10 +480,7 @@ class OTelExporter:
                             "agent_id": agent_id,
                         },
                     )
-                if (
-                    recommended_action.upper() == "BLOCK"
-                    and self._policy_block_counter is not None
-                ):
+                if recommended_action.upper() == "BLOCK" and self._policy_block_counter is not None:
                     self._policy_block_counter.add(
                         1,
                         attributes={

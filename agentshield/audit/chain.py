@@ -166,9 +166,7 @@ class AuditChainStore:
                 if entry.sequence_number == sequence_number:
                     return entry
 
-        raise AuditChainError(
-            f"Audit chain entry not found for sequence_number={sequence_number}"
-        )
+        raise AuditChainError(f"Audit chain entry not found for sequence_number={sequence_number}")
 
     def get_all_entries(self) -> list[ChainedAuditEntry]:
         """Return a shallow copy of all current in-memory entries."""
@@ -213,9 +211,7 @@ class AuditChainStore:
         """
         try:
             sequence_number = self._next_sequence_number
-            prev_chain_hash = (
-                self._entries[-1].chain_hash if self._entries else "GENESIS"
-            )
+            prev_chain_hash = self._entries[-1].chain_hash if self._entries else "GENESIS"
             event_payload_hash = ChainedAuditEntry.compute_payload_hash(event)
             chain_hash = ChainedAuditEntry.compute_chain_hash(
                 prev_chain_hash,

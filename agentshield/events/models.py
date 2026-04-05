@@ -133,9 +133,7 @@ class BaseEvent(BaseModel):
         description="UTC timestamp of event creation",
     )
     event_type: EventType = Field(..., description="Event category discriminator")
-    severity: SeverityLevel = Field(
-        default=SeverityLevel.INFO, description="Event severity level"
-    )
+    severity: SeverityLevel = Field(default=SeverityLevel.INFO, description="Event severity level")
     metadata: dict[str, Any] = Field(
         default_factory=dict,
         description="Arbitrary extensibility metadata",
@@ -176,9 +174,7 @@ class ToolCallEvent(BaseEvent):
         description="Execution duration in milliseconds",
         ge=0.0,
     )
-    blocked: bool = Field(
-        default=False, description="Whether this call was blocked by policy"
-    )
+    blocked: bool = Field(default=False, description="Whether this call was blocked by policy")
     block_reason: Optional[str] = Field(
         default=None, description="Reason for blocking if blocked=True"
     )
@@ -215,12 +211,8 @@ class LLMEvent(BaseEvent):
         default=None, description="LLM response. None on PROMPT events."
     )
     model: str = Field(..., description="Model identifier string")
-    token_count: Optional[int] = Field(
-        default=None, description="Total tokens consumed", ge=0
-    )
-    prompt_tokens: Optional[int] = Field(
-        default=None, description="Prompt token count", ge=0
-    )
+    token_count: Optional[int] = Field(default=None, description="Total tokens consumed", ge=0)
+    prompt_tokens: Optional[int] = Field(default=None, description="Prompt token count", ge=0)
     completion_tokens: Optional[int] = Field(
         default=None, description="Completion token count", ge=0
     )
@@ -328,9 +320,7 @@ class ThreatEvent(BaseEvent):
         default=None,
         description="UUID of the event that triggered detection",
     )
-    explanation: str = Field(
-        ..., description="Human-readable description of the threat"
-    )
+    explanation: str = Field(..., description="Human-readable description of the threat")
     recommended_action: RecommendedAction = Field(
         ...,
         description="Action AgentShield recommends or takes",
@@ -341,9 +331,7 @@ class ThreatEvent(BaseEvent):
     mitigated: bool = Field(
         default=False, description="Whether the threat was successfully blocked"
     )
-    detector_name: str = Field(
-        default="", description="Name of the detector that fired"
-    )
+    detector_name: str = Field(default="", description="Name of the detector that fired")
     canary_triggered: bool = Field(
         default=False,
         description="Whether a canary token triggered this event",
@@ -415,12 +403,8 @@ class CanaryEvent(BaseEvent):
     """
 
     canary_id: str = Field(..., description="Unique canary token identifier")
-    canary_hash: str = Field(
-        ..., description="Hash of canary value. Never the value itself."
-    )
-    triggered: bool = Field(
-        default=False, description="True if canary was echoed by LLM"
-    )
+    canary_hash: str = Field(..., description="Hash of canary value. Never the value itself.")
+    triggered: bool = Field(default=False, description="True if canary was echoed by LLM")
     trigger_context: Optional[str] = Field(
         default=None,
         description="Context snippet where canary appeared",
@@ -442,15 +426,9 @@ class ProvenanceEvent(BaseEvent):
         content_length: Length of the tagged content.
     """
 
-    content_hash: str = Field(
-        ..., description="Hash of tagged content. Never raw content."
-    )
-    trust_level: TrustLevel = Field(
-        ..., description="Trust level assigned to this content"
-    )
-    source_tool: Optional[str] = Field(
-        default=None, description="Tool that produced this content"
-    )
+    content_hash: str = Field(..., description="Hash of tagged content. Never raw content.")
+    trust_level: TrustLevel = Field(..., description="Trust level assigned to this content")
+    source_tool: Optional[str] = Field(default=None, description="Tool that produced this content")
     source_url: Optional[str] = Field(
         default=None, description="URL origin of content if applicable"
     )
@@ -573,8 +551,7 @@ def deserialize_event(data: dict[str, Any]) -> BaseEvent:
         event_type = EventType(raw_type)
     except ValueError as exc:
         raise ValueError(
-            f"Unknown event_type: {raw_type!r}. "
-            f"Valid types: {[e.value for e in EventType]}"
+            f"Unknown event_type: {raw_type!r}. " f"Valid types: {[e.value for e in EventType]}"
         ) from exc
 
     model_class = EVENT_TYPE_MAP.get(event_type, BaseEvent)

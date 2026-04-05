@@ -382,9 +382,7 @@ class AgentShieldConfig(BaseSettings):
             ValueError: If z-score is not positive.
         """
         if v <= 0.0:
-            raise ValueError(
-                f"memory_poison_zscore_threshold must be positive, got {v}"
-            )
+            raise ValueError(f"memory_poison_zscore_threshold must be positive, got {v}")
         return v
 
     @field_validator("memory_zscore_threshold", "memory_poison_z_score_threshold")
@@ -475,7 +473,7 @@ class AgentShieldConfig(BaseSettings):
             Version string from package metadata when available.
         """
         try:
-            return version("agent-shield-sdk")
+            return version("agentshield-sdk")
         except PackageNotFoundError:
             return "unknown"
 

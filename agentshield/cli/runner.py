@@ -95,9 +95,7 @@ class AgentLoader:
         try:
             module = importlib.import_module(module_path)
         except (ModuleNotFoundError, ImportError) as exc:
-            raise AgentShieldError(
-                f"Failed to import agent module '{module_path}': {exc}"
-            ) from exc
+            raise AgentShieldError(f"Failed to import agent module '{module_path}': {exc}") from exc
 
         try:
             factory = getattr(module, callable_name)
@@ -115,9 +113,7 @@ class AgentLoader:
         try:
             candidate = factory_callable()
         except (TypeError, ValueError, RuntimeError) as exc:
-            raise AgentShieldError(
-                f"Agent factory '{self._agent_module}' failed: {exc}"
-            ) from exc
+            raise AgentShieldError(f"Agent factory '{self._agent_module}' failed: {exc}") from exc
         except BaseException as exc:
             raise AgentShieldError(
                 "Agent factory "
@@ -149,15 +145,11 @@ class AgentLoader:
             AgentShieldError: If format is invalid.
         """
         if ":" not in agent_module:
-            raise AgentShieldError(
-                "agent_module must be in format 'module.path:callable_name'"
-            )
+            raise AgentShieldError("agent_module must be in format 'module.path:callable_name'")
 
         module_path, callable_name = agent_module.split(":", maxsplit=1)
         if not module_path or not callable_name:
-            raise AgentShieldError(
-                "agent_module must include both module path and callable name"
-            )
+            raise AgentShieldError("agent_module must include both module path and callable name")
 
         return module_path, callable_name
 
@@ -204,8 +196,7 @@ class AttackRunner:
                 latency_ms=0.0,
                 timestamp=timestamp,
                 notes=(
-                    "Simulation attack; live runner not supported for this "
-                    "category in Phase 9B."
+                    "Simulation attack; live runner not supported for this " "category in Phase 9B."
                 ),
             )
 

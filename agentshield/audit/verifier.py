@@ -57,9 +57,7 @@ class AuditChainVerifier:
                 broken_entry=None,
                 error_message=f"Verification failed unexpectedly: {exc}",
             )
-            logger.warning(
-                "Audit chain verification failed unexpectedly | error={}", exc
-            )
+            logger.warning("Audit chain verification failed unexpectedly | error={}", exc)
             return result
 
     def verify_chain(self, store: AuditChainStore) -> bool:
@@ -193,9 +191,7 @@ class AuditChainVerifier:
                         total_entries=len(entries),
                         first_broken_sequence=expected_sequence,
                         broken_entry=entry,
-                        error_message=(
-                            "prev_chain_hash does not match previous chain_hash"
-                        ),
+                        error_message=("prev_chain_hash does not match previous chain_hash"),
                     )
 
             expected_chain_hash = ChainedAuditEntry.compute_chain_hash(

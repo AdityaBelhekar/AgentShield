@@ -30,9 +30,7 @@ certify_app = typer.Typer(
 def generate_cert(
     report: Annotated[
         Path,
-        typer.Argument(
-            help="Path to a red team JSON report (from `redteam run --output`)."
-        ),
+        typer.Argument(help="Path to a red team JSON report (from `redteam run --output`)."),
     ],
     output: Annotated[
         Path | None,
@@ -122,9 +120,7 @@ def generate_cert(
             output.write_text(f"{cert.model_dump_json(indent=2)}\n", encoding="utf-8")
             rprint(f"[green]Certification JSON saved to:[/] {output}")
         except OSError as exc:
-            error = AgentShieldError(
-                f"Failed to write certification JSON to '{output}': {exc}"
-            )
+            error = AgentShieldError(f"Failed to write certification JSON to '{output}': {exc}")
             rprint(f"[red]Failed to save certification JSON:[/] {error}")
             raise typer.Exit(code=1) from error
 

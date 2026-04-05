@@ -76,9 +76,7 @@ class PrometheusExporter:
         self._active = False
 
         if not _PROMETHEUS_AVAILABLE:
-            logger.warning(
-                "prometheus-client not installed. Install agentshield-sdk[grafana]."
-            )
+            logger.warning("prometheus-client not installed. Install agentshield-sdk[grafana].")
             return
 
         if (
@@ -277,9 +275,7 @@ class PrometheusExporter:
             if event_type_raw == "threat_detected":
                 self._handle_threat(raw)
         except Exception as exc:
-            logger.warning(
-                "PrometheusExporter message processing warning | error={}", exc
-            )
+            logger.warning("PrometheusExporter message processing warning | error={}", exc)
 
     def _handle_session_start(self, raw: dict[str, Any]) -> None:
         """Handle session-start events for active session metrics.
@@ -325,13 +321,8 @@ class PrometheusExporter:
             else:
                 self._session_start_times.pop(session_id, None)
 
-            if (
-                duration_seconds is not None
-                and self._session_duration_seconds is not None
-            ):
-                self._session_duration_seconds.labels(agent_id=agent_id).observe(
-                    duration_seconds
-                )
+            if duration_seconds is not None and self._session_duration_seconds is not None:
+                self._session_duration_seconds.labels(agent_id=agent_id).observe(duration_seconds)
         except Exception as exc:
             logger.warning("PrometheusExporter session_end warning | error={}", exc)
 
@@ -448,11 +439,7 @@ class PrometheusExporter:
         candidates = [
             raw.get("session_duration"),
             raw.get("session_duration_seconds"),
-            (
-                metadata.get("session_duration_seconds")
-                if isinstance(metadata, dict)
-                else None
-            ),
+            (metadata.get("session_duration_seconds") if isinstance(metadata, dict) else None),
         ]
 
         for candidate in candidates:

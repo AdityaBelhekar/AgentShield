@@ -133,9 +133,7 @@ class CanarySystem:
 
         if event.event_type == EventType.LLM_RESPONSE and isinstance(event, LLMEvent):
             text_to_scan = event.response
-        elif event.event_type == EventType.TOOL_CALL_COMPLETE and isinstance(
-            event, ToolCallEvent
-        ):
+        elif event.event_type == EventType.TOOL_CALL_COMPLETE and isinstance(event, ToolCallEvent):
             text_to_scan = event.tool_output
 
         if text_to_scan is None:
@@ -356,10 +354,7 @@ class CanarySystem:
             Matching CanaryToken or None.
         """
 
-        if (
-            state.active_token is not None
-            and state.active_token.token_value == token_value
-        ):
+        if state.active_token is not None and state.active_token.token_value == token_value:
             return state.active_token
 
         for token in reversed(state.historical_tokens):

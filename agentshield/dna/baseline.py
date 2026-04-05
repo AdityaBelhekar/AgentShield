@@ -134,18 +134,10 @@ class AgentBaseline:
             "created_at": self.created_at.isoformat(),
             "last_updated": self.last_updated.isoformat(),
             "feature_names": self.feature_names,
-            "mean_vector": (
-                self.mean_vector.tolist() if self.mean_vector is not None else None
-            ),
-            "std_vector": (
-                self.std_vector.tolist() if self.std_vector is not None else None
-            ),
-            "min_vector": (
-                self.min_vector.tolist() if self.min_vector is not None else None
-            ),
-            "max_vector": (
-                self.max_vector.tolist() if self.max_vector is not None else None
-            ),
+            "mean_vector": (self.mean_vector.tolist() if self.mean_vector is not None else None),
+            "std_vector": (self.std_vector.tolist() if self.std_vector is not None else None),
+            "min_vector": (self.min_vector.tolist() if self.min_vector is not None else None),
+            "max_vector": (self.max_vector.tolist() if self.max_vector is not None else None),
         }
 
     @classmethod

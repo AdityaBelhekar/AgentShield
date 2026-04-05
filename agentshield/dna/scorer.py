@@ -83,8 +83,7 @@ class AnomalyReport:
             },
             "anomalous_features": self.anomalous_features,
             "feature_contributions": {
-                key: round(value, 4)
-                for key, value in self.feature_contributions.items()
+                key: round(value, 4) for key, value in self.feature_contributions.items()
             },
             "baseline_session_count": self.baseline_session_count,
             "threshold_used": self.threshold_used,
@@ -160,8 +159,7 @@ class DNAAnomalyScorer:
         composite = float(np.clip(composite, 0.0, 1.0))
 
         feature_zscores = {
-            feature_name: float(zscores[index])
-            for index, feature_name in enumerate(feature_names)
+            feature_name: float(zscores[index]) for index, feature_name in enumerate(feature_names)
         }
 
         anomalous_features = [

@@ -206,9 +206,7 @@ class SessionObserver:
         Args:
             event: Any BaseEvent from the session.
         """
-        if event.event_type == EventType.TOOL_CALL_START and isinstance(
-            event, ToolCallEvent
-        ):
+        if event.event_type == EventType.TOOL_CALL_START and isinstance(event, ToolCallEvent):
             self._tool_names.append(event.tool_name)
             self._current_chain.append(event.tool_name)
             self._max_chain_depth = max(
@@ -230,9 +228,7 @@ class SessionObserver:
                 self._response_lengths.append(len(event.response))
             return
 
-        if event.event_type == EventType.MEMORY_WRITE and isinstance(
-            event, MemoryEvent
-        ):
+        if event.event_type == EventType.MEMORY_WRITE and isinstance(event, MemoryEvent):
             self._memory_writes += 1
             return
 
@@ -260,19 +256,13 @@ class SessionObserver:
         tool_diversity = unique_tools / tool_count if tool_count > 0 else 0.0
         tool_velocity = tool_count / (duration / 60.0)
 
-        mean_prompt = (
-            float(np.mean(self._prompt_lengths)) if self._prompt_lengths else 0.0
-        )
+        mean_prompt = float(np.mean(self._prompt_lengths)) if self._prompt_lengths else 0.0
 
         prompt_variance = (
-            float(np.var(self._prompt_lengths))
-            if len(self._prompt_lengths) > 1
-            else 0.0
+            float(np.var(self._prompt_lengths)) if len(self._prompt_lengths) > 1 else 0.0
         )
 
-        mean_response = (
-            float(np.mean(self._response_lengths)) if self._response_lengths else 0.0
-        )
+        mean_response = float(np.mean(self._response_lengths)) if self._response_lengths else 0.0
 
         return SessionFeatureVector(
             agent_id=self._agent_id,

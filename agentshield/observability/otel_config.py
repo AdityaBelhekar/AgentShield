@@ -66,7 +66,5 @@ class OTelConfig(BaseModel):
             ConfigurationError: If timeout is outside [100, 30000].
         """
         if value < 100 or value > 30000:
-            raise ConfigurationError(
-                "otel_config.export_timeout_ms must be between 100 and 30000"
-            )
+            raise ConfigurationError("otel_config.export_timeout_ms must be between 100 and 30000")
         return value

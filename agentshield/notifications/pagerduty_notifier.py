@@ -160,9 +160,7 @@ class PagerDutyNotifier:
         """
         if not _HTTPX_AVAILABLE or _httpx_runtime is None:
             if not self._missing_httpx_warned:
-                logger.warning(
-                    "httpx not installed. Install agentshield-sdk[notifications]."
-                )
+                logger.warning("httpx not installed. Install agentshield-sdk[notifications].")
                 self._missing_httpx_warned = True
             return
 
@@ -212,9 +210,7 @@ class PagerDutyNotifier:
         """
         if not _HTTPX_AVAILABLE or _httpx_runtime is None:
             if not self._missing_httpx_warned:
-                logger.warning(
-                    "httpx not installed. Install agentshield-sdk[notifications]."
-                )
+                logger.warning("httpx not installed. Install agentshield-sdk[notifications].")
                 self._missing_httpx_warned = True
             return
 

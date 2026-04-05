@@ -1,0 +1,11 @@
+include README.md
+include CHANGELOG.md
+include LICENSE
+include agentshield/py.typed
+recursive-include agentshield *.py *.typed
+recursive-exclude * __pycache__
+recursive-exclude * *.py[co]
+exclude scratch/
+exclude docs/
+exclude frontend/
+exclude .github/

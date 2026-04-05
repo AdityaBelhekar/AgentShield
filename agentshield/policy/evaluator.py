@@ -419,9 +419,7 @@ class PolicyEvaluator:
             return False
 
         suffix = candidate[-len(pattern) :]
-        return all(
-            pat.lower() in tool for tool, pat in zip(suffix, pattern, strict=True)
-        )
+        return all(pat.lower() in tool for tool, pat in zip(suffix, pattern, strict=True))
 
     def _match_threat_score(
         self,

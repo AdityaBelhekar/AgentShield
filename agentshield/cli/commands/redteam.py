@@ -111,9 +111,7 @@ def list_attacks(
             parsed_category = AttackCategory(category)
         except ValueError as error:
             valid_categories = ", ".join(item.value for item in AttackCategory)
-            typer.echo(
-                f"Invalid category: {category}. Must be one of: {valid_categories}"
-            )
+            typer.echo(f"Invalid category: {category}. Must be one of: {valid_categories}")
             raise typer.Exit(code=1) from error
         attacks = [attack for attack in attacks if attack.category == parsed_category]
 
@@ -122,9 +120,7 @@ def list_attacks(
             parsed_severity = AttackSeverity(severity)
         except ValueError as error:
             valid_severities = ", ".join(item.value for item in AttackSeverity)
-            typer.echo(
-                f"Invalid severity: {severity}. Must be one of: {valid_severities}"
-            )
+            typer.echo(f"Invalid severity: {severity}. Must be one of: {valid_severities}")
             raise typer.Exit(code=1) from error
         attacks = [attack for attack in attacks if attack.severity == parsed_severity]
 
@@ -238,16 +234,12 @@ def run_attacks(
             parsed_category = AttackCategory(category)
         except ValueError as exc:
             valid_categories = ", ".join(item.value for item in AttackCategory)
-            rprint(
-                "[red]Invalid category:[/] "
-                f"{category}. Must be one of: {valid_categories}"
-            )
+            rprint("[red]Invalid category:[/] " f"{category}. Must be one of: {valid_categories}")
             raise typer.Exit(code=1) from exc
         attacks = get_attacks_by_category(parsed_category)
 
     logger.info(
-        "Prepared red team run | module={} policy={} attack_count={} "
-        "attack_id={} category={}",
+        "Prepared red team run | module={} policy={} attack_count={} " "attack_id={} category={}",
         agent_module,
         policy,
         len(attacks),

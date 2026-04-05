@@ -77,9 +77,7 @@ class CanaryToken:
             "session_id": str(self.session_id),
             "created_at": self.created_at.isoformat(),
             "triggered": self.triggered,
-            "triggered_at": (
-                self.triggered_at.isoformat() if self.triggered_at else None
-            ),
+            "triggered_at": (self.triggered_at.isoformat() if self.triggered_at else None),
             "injection_count": self.injection_count,
         }
 

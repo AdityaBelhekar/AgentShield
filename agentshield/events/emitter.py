@@ -102,8 +102,7 @@ class EventEmitter:
             if not published:
                 self._fail_count += 1
                 logger.warning(
-                    "Redis publish failed after all retries | "
-                    "event_id={} type={} session={}",
+                    "Redis publish failed after all retries | " "event_id={} type={} session={}",
                     event.id,
                     event.event_type,
                     event.session_id,

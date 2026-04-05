@@ -79,6 +79,4 @@ class ChainedAuditEntry(BaseModel):
             )
             return hashlib.sha256(canonical_json.encode("utf-8")).hexdigest()
         except Exception as exc:  # pragma: no cover - defensive guard
-            raise AuditChainError(
-                f"Failed to compute event payload hash: {exc}"
-            ) from exc
+            raise AuditChainError(f"Failed to compute event payload hash: {exc}") from exc

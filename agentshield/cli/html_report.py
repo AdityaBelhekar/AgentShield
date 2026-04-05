@@ -326,9 +326,7 @@ class HtmlReportRenderer:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(f"{html}\n", encoding="utf-8")
         except OSError as exc:
-            raise AgentShieldError(
-                f"Failed to write HTML report to '{path}': {exc}"
-            ) from exc
+            raise AgentShieldError(f"Failed to write HTML report to '{path}': {exc}") from exc
 
     def _render_certification_banner(self) -> str:
         """Render certification banner HTML.
