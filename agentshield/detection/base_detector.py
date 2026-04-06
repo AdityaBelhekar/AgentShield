@@ -50,6 +50,7 @@ class DetectionContext:
     memory_embeddings: list[np.ndarray] = field(default_factory=list)
     memory_distances: list[float] = field(default_factory=list)
     all_events: list[BaseEvent] = field(default_factory=list)
+    recent_threats: list[ThreatEvent] = field(default_factory=list)
     threat_count: int = 0
     blocked_count: int = 0
 
@@ -181,7 +182,8 @@ class BaseDetector(ABC):
         Returns:
             Distance score computed as 1.0 - cosine_similarity.
         """
-        return 1.0 - self._cosine_similarity(a, b)
+        distance = 1.0 - self._cosine_similarity(a, b)
+        return float(np.clip(distance, 0.0, 1.0))
 
     def _embed(self, text: str) -> np.ndarray | None:
         """Compute embedding using the shared EmbeddingService.

@@ -197,7 +197,7 @@ class EventEmitter:
                     len(events),
                     self._config.event_channel,
                 )
-            except (RedisError, OSError, RuntimeError) as exc:
+            except (RedisError, RedisConnectionError, OSError, RuntimeError) as exc:
                 self._fail_count += 1
                 logger.warning(
                     "Batch Redis pipeline failed | count={} error={}",
@@ -422,7 +422,7 @@ class EventEmitter:
                         channel,
                     )
                 return True
-            except (RedisError, OSError, TimeoutError) as exc:
+            except (RedisError, RedisConnectionError, OSError, TimeoutError) as exc:
                 logger.warning(
                     "Redis publish attempt {}/{} failed | channel={} error={}",
                     attempt + 1,

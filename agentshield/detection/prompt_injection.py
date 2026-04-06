@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 
 import numpy as np
 from loguru import logger
@@ -46,6 +47,12 @@ INJECTION_SIGNATURES: list[str] = [
     "switch to",
     "from now on you",
     "from this point on",
+    "no content policy",
+    "answer freely",
+    "unrestricted ai",
+    "no rules",
+    "reveal the system prompt",
+    "exfiltrate all user data",
     # System override
     "system override",
     "system prompt",
@@ -202,12 +209,17 @@ class PromptInjectionDetector(BaseDetector):
         if not text or not text.strip():
             return None
 
-        text_lower = text.lower()
+        normalized_text = self._normalize_text(text)
+        text_lower = normalized_text.lower()
 
         pattern_score, pattern_matches = self._pattern_analysis(text_lower)
-        semantic_score = self._semantic_analysis(text)
+        semantic_score = max(
+            self._semantic_analysis(text),
+            self._semantic_analysis(normalized_text),
+        )
         structural_score, structural_markers = self._structural_analysis(
-            text, text_lower
+            normalized_text,
+            text_lower,
         )
 
         confidence = self._compute_final_confidence(
@@ -234,7 +246,7 @@ class PromptInjectionDetector(BaseDetector):
         action = self._confidence_to_action(
             confidence=confidence,
             block_threshold=block_threshold,
-            alert_threshold=0.50,
+            alert_threshold=0.45,
             flag_threshold=self._config.injection_pattern_threshold,
         )
         severity = self._confidence_to_severity(confidence)
@@ -274,6 +286,55 @@ class PromptInjectionDetector(BaseDetector):
             action=action,
             severity=severity,
         )
+
+    def _normalize_text(self, text: str) -> str:
+        """Normalize text before pattern and semantic analysis.
+
+        Removes zero-width/control formatting characters and maps
+        common homoglyphs back to ASCII equivalents so simple
+        obfuscation attempts still match canonical signatures.
+
+        Args:
+            text: Input text to normalize.
+
+        Returns:
+            Normalized text with collapsed whitespace.
+        """
+        normalized = unicodedata.normalize("NFKC", text)
+
+        # Strip format-control characters such as zero-width spaces.
+        stripped = "".join(
+            char for char in normalized if unicodedata.category(char) != "Cf"
+        )
+
+        # Common Cyrillic/Greek homoglyph replacements seen in evasion attempts.
+        homoglyph_map = {
+            "а": "a",
+            "е": "e",
+            "і": "i",
+            "ј": "j",
+            "о": "o",
+            "р": "p",
+            "с": "c",
+            "у": "y",
+            "х": "x",
+            "Α": "A",
+            "Β": "B",
+            "Ε": "E",
+            "Η": "H",
+            "Ι": "I",
+            "Κ": "K",
+            "Μ": "M",
+            "Ν": "N",
+            "Ο": "O",
+            "Ρ": "P",
+            "Τ": "T",
+            "Χ": "X",
+        }
+        mapped = "".join(homoglyph_map.get(char, char) for char in stripped)
+
+        # Collapse repeated whitespace after character-level normalization.
+        return " ".join(mapped.split())
 
     def _pattern_analysis(self, text_lower: str) -> tuple[float, list[str]]:
         """Match lowercased text against known injection signatures.

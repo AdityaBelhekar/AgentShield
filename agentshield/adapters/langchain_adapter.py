@@ -97,7 +97,7 @@ class LangChainAdapter(BaseAdapter):
                     context.runtime.on_llm_end(self._extract_response(result))
                     return result
 
-                setattr(agent, method_name, async_wrapper)
+                self._assign_callable(agent, method_name, async_wrapper)
             else:
 
                 def sync_wrapper(*args: Any, _original: Any = original, **kwargs: Any) -> Any:
@@ -114,7 +114,7 @@ class LangChainAdapter(BaseAdapter):
                     context.runtime.on_llm_end(self._extract_response(result))
                     return result
 
-                setattr(agent, method_name, sync_wrapper)
+                self._assign_callable(agent, method_name, sync_wrapper)
 
     def _patch_tools(self, agent: Any, context: AdapterContext) -> None:
         """Patch tool call methods exposed by LangChain agents.
@@ -154,7 +154,7 @@ class LangChainAdapter(BaseAdapter):
                         context.runtime.on_tool_end(_tool_name, self._extract_response(result))
                         return result
 
-                    setattr(tool, method_name, async_wrapper)
+                    self._assign_callable(tool, method_name, async_wrapper)
                 else:
 
                     def sync_wrapper(
@@ -175,7 +175,7 @@ class LangChainAdapter(BaseAdapter):
                         context.runtime.on_tool_end(_tool_name, self._extract_response(result))
                         return result
 
-                    setattr(tool, method_name, sync_wrapper)
+                    self._assign_callable(tool, method_name, sync_wrapper)
 
     def _patch_memory(self, agent: Any, context: AdapterContext) -> None:
         """Patch memory read/write calls when an agent memory object exists.
@@ -209,7 +209,7 @@ class LangChainAdapter(BaseAdapter):
                     context.runtime.on_memory_read(self._extract_response(result))
                     return result
 
-                setattr(memory, method_name, async_read)
+                self._assign_callable(memory, method_name, async_read)
             else:
 
                 def sync_read(*args: Any, _original: Any = original, **kwargs: Any) -> Any:
@@ -223,7 +223,7 @@ class LangChainAdapter(BaseAdapter):
                     context.runtime.on_memory_read(self._extract_response(result))
                     return result
 
-                setattr(memory, method_name, sync_read)
+                self._assign_callable(memory, method_name, sync_read)
 
         for method_name in write_methods:
             original = getattr(memory, method_name, None)
@@ -242,7 +242,7 @@ class LangChainAdapter(BaseAdapter):
                         logger.error(f"Adapter interception failed: {error}")
                         raise
 
-                setattr(memory, method_name, async_write)
+                self._assign_callable(memory, method_name, async_write)
             else:
 
                 def sync_write(*args: Any, _original: Any = original, **kwargs: Any) -> Any:
@@ -255,7 +255,26 @@ class LangChainAdapter(BaseAdapter):
                         logger.error(f"Adapter interception failed: {error}")
                         raise
 
-                setattr(memory, method_name, sync_write)
+                self._assign_callable(memory, method_name, sync_write)
+
+    def _assign_callable(self, target: Any, name: str, wrapper: Any) -> None:
+        """Assign a patched callable to a framework object.
+
+        Some LangChain objects are Pydantic models that reject normal
+        setattr for undeclared fields. Fall back to object.__setattr__
+        so runtime hook patching works across both plain and Pydantic
+        object types.
+
+        Args:
+            target: Object receiving the patched callable.
+            name: Attribute/method name to patch.
+            wrapper: Replacement callable.
+        """
+        try:
+            setattr(target, name, wrapper)
+            return
+        except (ValueError, AttributeError, TypeError):
+            object.__setattr__(target, name, wrapper)
 
     def _record_sub_agent_messages(
         self,

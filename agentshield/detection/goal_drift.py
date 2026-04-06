@@ -67,6 +67,7 @@ class GoalDriftDetector(BaseDetector):
         super().__init__(config, embedding_service)
         self._prompt_distances: dict[str, list[float]] = {}
         self._prompt_counts: dict[str, int] = {}
+        self._session_peak_scores: dict[str, float] = {}
 
         logger.debug("GoalDriftDetector initialized")
 
@@ -158,7 +159,19 @@ class GoalDriftDetector(BaseDetector):
 
         prompt_count = self._prompt_counts.get(session_key, 0)
         rolling_avg = self._rolling_average(session_key)
-        effective_score = max(drift_score, rolling_avg)
+
+        # Preserve the highest recent drift signal to prevent rapid
+        # oscillation when prompts alternate between benign and malicious.
+        peak_so_far = self._session_peak_scores.get(session_key, 0.0)
+        effective_score = max(drift_score, rolling_avg, peak_so_far)
+        self._session_peak_scores[session_key] = effective_score
+
+        # Early prompts are often setup/context handshakes; suppress
+        # medium drift until a stronger signal emerges.
+        if prompt_count < self._config.min_prompts_before_block:
+            warmup_threshold = min(self._config.goal_drift_block_threshold + 0.15, 0.95)
+            if effective_score < warmup_threshold:
+                return None
 
         logger.debug(
             "Goal drift score | session={} drift={:.3f} rolling_avg={:.3f} prompt_count={}",
@@ -357,6 +370,7 @@ class GoalDriftDetector(BaseDetector):
         """
         self._prompt_distances.pop(session_id, None)
         self._prompt_counts.pop(session_id, None)
+        self._session_peak_scores.pop(session_id, None)
         logger.debug(
             "GoalDriftDetector session cleared | session={}",
             session_id[:8],

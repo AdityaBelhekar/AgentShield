@@ -133,6 +133,10 @@ class CanarySystem:
 
         if event.event_type == EventType.LLM_RESPONSE and isinstance(event, LLMEvent):
             text_to_scan = event.response
+        elif event.event_type == EventType.LLM_PROMPT and isinstance(event, LLMEvent):
+            # Ignore the runtime's own canary instruction envelope if present.
+            if "[AGENTSHIELD-INTEGRITY-CHECK]" not in event.prompt:
+                text_to_scan = event.prompt
         elif event.event_type == EventType.TOOL_CALL_COMPLETE and isinstance(event, ToolCallEvent):
             text_to_scan = event.tool_output
 

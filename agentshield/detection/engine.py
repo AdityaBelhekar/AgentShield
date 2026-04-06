@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -55,6 +56,8 @@ SINGLE_DETECTOR_MAX_ACTION = RecommendedAction.ALERT
 MULTI_DETECTOR_ESCALATE_THRESHOLD = 2
 ALWAYS_BLOCK_THRESHOLD = 3
 MEMORY_DISTANCE_EPSILON = 1e-8
+CORRELATION_WINDOW_SECONDS = 30
+CORRELATION_MAX_THREATS = 20
 
 
 @dataclass
@@ -368,8 +371,11 @@ class DetectionEngine:
         if not raw_threats:
             return []
 
-        correlation = self._correlate_threats(raw_threats)
-        threat_events = correlation.threats
+        self._prune_recent_threats(context)
+        correlation_input = self._build_correlation_window(context, raw_threats)
+
+        correlation = self._correlate_threats(correlation_input)
+        threat_events = raw_threats
         final_action = correlation.final_action
         should_block = correlation.should_block
 
@@ -406,15 +412,11 @@ class DetectionEngine:
                         else "default"
                     ),
                 )
-            elif (
-                policy_decision.action == PolicyAction.ALERT
-                and final_action == RecommendedAction.FLAG
-            ):
-                final_action = RecommendedAction.ALERT
-                logger.debug(
-                    "Policy escalated FLAG -> ALERT | event_id={}",
-                    event.id,
-                )
+            else:
+                policy_cap = self._policy_action_to_recommended_action(policy_decision.action)
+                if policy_cap is not None:
+                    final_action = self._cap_action(final_action, policy_cap)
+                    should_block = final_action == RecommendedAction.BLOCK
         # -- End policy evaluation ----------------------------
 
         if final_action == RecommendedAction.BLOCK:
@@ -426,21 +428,25 @@ class DetectionEngine:
             ]
         elif final_action == RecommendedAction.ALERT:
             threat_events = [
-                threat.model_copy(
-                    update={
-                        "recommended_action": (
-                            RecommendedAction.ALERT
-                            if threat.recommended_action == RecommendedAction.FLAG
-                            else threat.recommended_action
-                        )
-                    }
-                )
+                threat.model_copy(update={"recommended_action": RecommendedAction.ALERT})
+                for threat in threat_events
+            ]
+        elif final_action == RecommendedAction.FLAG:
+            threat_events = [
+                threat.model_copy(update={"recommended_action": RecommendedAction.FLAG})
+                for threat in threat_events
+            ]
+        elif final_action == RecommendedAction.LOG_ONLY:
+            threat_events = [
+                threat.model_copy(update={"recommended_action": RecommendedAction.LOG_ONLY})
                 for threat in threat_events
             ]
 
         for threat in threat_events:
             self._emitter.emit(threat)
             context.threat_count += 1
+
+        self._remember_recent_threats(context, threat_events)
 
         if correlation.escalated:
             logger.warning(
@@ -695,7 +701,7 @@ class DetectionEngine:
                 detector_count=0,
             )
 
-        detector_count = len(threats)
+        detector_count = len({threat.detector_name for threat in threats})
         any_canary = any(threat.canary_triggered for threat in threats)
 
         if any_canary:
@@ -801,6 +807,45 @@ class DetectionEngine:
         }
         return escalation_map[action]
 
+    def _policy_action_to_recommended_action(
+        self,
+        action: PolicyAction,
+    ) -> RecommendedAction | None:
+        """Map policy action to recommended-action cap value.
+
+        Args:
+            action: Policy action returned by evaluator.
+
+        Returns:
+            RecommendedAction cap, or None when no cap applies.
+        """
+        mapping: dict[PolicyAction, RecommendedAction | None] = {
+            PolicyAction.BLOCK: RecommendedAction.BLOCK,
+            PolicyAction.ALERT: RecommendedAction.ALERT,
+            PolicyAction.FLAG: RecommendedAction.FLAG,
+            PolicyAction.LOG: RecommendedAction.LOG_ONLY,
+            PolicyAction.ALLOW: None,
+        }
+        return mapping.get(action)
+
+    def _cap_action(
+        self,
+        action: RecommendedAction,
+        cap: RecommendedAction,
+    ) -> RecommendedAction:
+        """Cap an action to policy maximum severity.
+
+        Args:
+            action: Action selected by detector correlation.
+            cap: Maximum action allowed by policy.
+
+        Returns:
+            Capped action.
+        """
+        if self._action_priority(action) <= self._action_priority(cap):
+            return action
+        return cap
+
     def _update_context(self, context: DetectionContext, event: BaseEvent) -> None:
         """Update DetectionContext state after processing an event.
 
@@ -843,6 +888,67 @@ class DetectionEngine:
                     context.memory_distances.append(distance)
 
                 context.memory_embeddings.append(embedding)
+
+    def _prune_recent_threats(self, context: DetectionContext) -> None:
+        """Drop stale threats from correlation memory window.
+
+        Args:
+            context: Session detection context.
+        """
+        if not context.recent_threats:
+            return
+
+        cutoff = datetime.now(UTC) - timedelta(seconds=CORRELATION_WINDOW_SECONDS)
+        context.recent_threats = [
+            threat
+            for threat in context.recent_threats
+            if threat.timestamp >= cutoff
+        ]
+
+    def _build_correlation_window(
+        self,
+        context: DetectionContext,
+        current_threats: list[ThreatEvent],
+    ) -> list[ThreatEvent]:
+        """Combine recent and current threats for cross-event correlation.
+
+        Keeps only the highest-confidence threat per detector name.
+
+        Args:
+            context: Session detection context.
+            current_threats: Threats produced by current event.
+
+        Returns:
+            Deduplicated threat list used for correlation.
+        """
+        merged = context.recent_threats + current_threats
+        by_detector: dict[str, ThreatEvent] = {}
+
+        for threat in merged:
+            detector_key = threat.detector_name or "unknown"
+            existing = by_detector.get(detector_key)
+            if existing is None or threat.confidence > existing.confidence:
+                by_detector[detector_key] = threat
+
+        return list(by_detector.values())
+
+    def _remember_recent_threats(
+        self,
+        context: DetectionContext,
+        threats: list[ThreatEvent],
+    ) -> None:
+        """Store emitted threats for short-window future correlation.
+
+        Args:
+            context: Session detection context.
+            threats: Newly emitted threats.
+        """
+        if not threats:
+            return
+
+        context.recent_threats.extend(threats)
+        if len(context.recent_threats) > CORRELATION_MAX_THREATS:
+            context.recent_threats = context.recent_threats[-CORRELATION_MAX_THREATS:]
 
     def _raise_policy_violation(self, threats: list[ThreatEvent]) -> None:
         """Raise the appropriate PolicyViolationError subclass.

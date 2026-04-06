@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import timedelta
+
 import numpy as np
 from loguru import logger
 
@@ -59,7 +61,13 @@ MEMORY_POISON_PATTERNS: list[str] = [
     "always report to",
     "send all data to",
     "copy all to",
+    "system override",
+    "ignore all safety rules",
+    "exfiltrate data",
 ]
+
+MEMORY_BURST_WINDOW_SECONDS = 2.0
+MEMORY_BURST_WRITE_THRESHOLD = 25
 
 
 class MemoryPoisonDetector(BaseDetector):
@@ -142,11 +150,16 @@ class MemoryPoisonDetector(BaseDetector):
             event.content_length,
             context,
         )
+        velocity_score, velocity_count = self._velocity_anomaly_analysis(
+            event,
+            context,
+        )
 
         confidence, primary_signal = self._compute_confidence(
             pattern_score=pattern_score,
             semantic_score=semantic_score,
             length_score=length_score,
+            velocity_score=velocity_score,
         )
 
         pattern_threshold = self._config.memory_poison_anomaly_score_threshold
@@ -180,8 +193,10 @@ class MemoryPoisonDetector(BaseDetector):
             "pattern_score": round(pattern_score, 4),
             "semantic_score": round(semantic_score, 4),
             "length_score": round(length_score, 4),
+            "velocity_score": round(velocity_score, 4),
             "semantic_zscore": round(semantic_zscore, 4),
             "length_zscore": round(length_zscore, 4),
+            "recent_write_count": velocity_count,
             "pattern_matches": pattern_matches[:5],
             "baseline_size": len(context.memory_embeddings),
             "content_preview": content[:100],
@@ -363,6 +378,7 @@ class MemoryPoisonDetector(BaseDetector):
         pattern_score: float,
         semantic_score: float,
         length_score: float,
+        velocity_score: float,
     ) -> tuple[float, str]:
         """Combine layer scores into final confidence.
 
@@ -378,14 +394,65 @@ class MemoryPoisonDetector(BaseDetector):
             "pattern": pattern_score,
             "semantic_anomaly": semantic_score,
             "length_anomaly": length_score,
+            "write_velocity": velocity_score,
         }
         primary_signal = max(scores, key=lambda key: scores[key])
 
-        max_individual = max(pattern_score, semantic_score, length_score)
-        weighted = pattern_score * 0.55 + semantic_score * 0.35 + length_score * 0.10
+        max_individual = max(pattern_score, semantic_score, length_score, velocity_score)
+        weighted = (
+            pattern_score * 0.45
+            + semantic_score * 0.30
+            + length_score * 0.10
+            + velocity_score * 0.15
+        )
 
         final = max(max_individual, weighted)
         return float(np.clip(final, 0.0, 1.0)), primary_signal
+
+    def _velocity_anomaly_analysis(
+        self,
+        event: MemoryEvent,
+        context: DetectionContext,
+    ) -> tuple[float, int]:
+        """Detect burst write velocity anomalies over a short time window.
+
+        Args:
+            event: Current memory-write event.
+            context: Session context with historical events.
+
+        Returns:
+            Tuple of normalized anomaly score and recent write count.
+        """
+        window_start = event.timestamp - timedelta(seconds=MEMORY_BURST_WINDOW_SECONDS)
+
+        recent_writes = [
+            observed
+            for observed in context.all_events
+            if isinstance(observed, MemoryEvent)
+            and observed.event_type == EventType.MEMORY_WRITE
+            and observed.timestamp >= window_start
+        ]
+
+        recent_count = len(recent_writes) + 1
+        if recent_count < MEMORY_BURST_WRITE_THRESHOLD:
+            return 0.0, recent_count
+
+        overflow = recent_count - MEMORY_BURST_WRITE_THRESHOLD
+        score = float(
+            np.clip(
+                0.35 + (overflow / MEMORY_BURST_WRITE_THRESHOLD),
+                0.0,
+                1.0,
+            )
+        )
+
+        logger.debug(
+            "Memory write burst detected | count={} window_s={} score={:.3f}",
+            recent_count,
+            MEMORY_BURST_WINDOW_SECONDS,
+            score,
+        )
+        return score, recent_count
 
     def _build_explanation(
         self,

@@ -248,8 +248,11 @@ class ToolChainDetector(BaseDetector):
             None if no forbidden sequence matched.
         """
         for pattern in FORBIDDEN_SEQUENCES:
-            if self._matches_suffix(sequence=candidate_sequence, pattern=pattern):
-                matched_sequence = candidate_sequence[-len(pattern) :]
+            matched_sequence = self._matches_pattern(
+                sequence=candidate_sequence,
+                pattern=pattern,
+            )
+            if matched_sequence is not None:
 
                 explanation = (
                     "Tool chain escalation detected. "
@@ -284,6 +287,25 @@ class ToolChainDetector(BaseDetector):
                 )
 
         return None
+
+    def _matches_pattern(
+        self,
+        sequence: list[str],
+        pattern: tuple[str, ...],
+    ) -> list[str] | None:
+        """Match a forbidden pattern by suffix or ordered subsequence.
+
+        Args:
+            sequence: Tool sequence to check.
+            pattern: Forbidden pattern definition.
+
+        Returns:
+            Matched sequence values if pattern exists, otherwise None.
+        """
+        if self._matches_suffix(sequence=sequence, pattern=pattern):
+            return sequence[-len(pattern) :]
+
+        return self._ordered_subsequence_match(sequence=sequence, pattern=pattern)
 
     def _matches_suffix(
         self,
@@ -321,6 +343,40 @@ class ToolChainDetector(BaseDetector):
                 return False
         return True
 
+    def _ordered_subsequence_match(
+        self,
+        sequence: list[str],
+        pattern: tuple[str, ...],
+    ) -> list[str] | None:
+        """Find ordered pattern match allowing benign tools in-between.
+
+        Args:
+            sequence: Tool call sequence to scan.
+            pattern: Forbidden pattern terms.
+
+        Returns:
+            List of matched tools in order, or None if not present.
+        """
+        if len(sequence) < len(pattern):
+            return None
+
+        matched: list[str] = []
+        search_start = 0
+
+        for pattern_term in pattern:
+            found = False
+            for index in range(search_start, len(sequence)):
+                tool_name = sequence[index]
+                if pattern_term in tool_name:
+                    matched.append(tool_name)
+                    search_start = index + 1
+                    found = True
+                    break
+            if not found:
+                return None
+
+        return matched
+
     def _heuristic_escalation_score(
         self,
         candidate_sequence: list[str],
@@ -355,22 +411,41 @@ class ToolChainDetector(BaseDetector):
         current = candidate_sequence[-1] if candidate_sequence else ""
         previous = candidate_sequence[-2] if len(candidate_sequence) >= 2 else ""
 
-        current_is_send = self._is_category(current, SEND_PATTERNS)
-        previous_is_read = self._is_category(previous, READ_PATTERNS)
-        previous_is_execute = self._is_category(previous, EXECUTE_PATTERNS)
+        read_send_pair = self._has_ordered_category_pair(
+            sequence=candidate_sequence,
+            first_patterns=READ_PATTERNS,
+            second_patterns=SEND_PATTERNS,
+        )
+        execute_send_pair = self._has_ordered_category_pair(
+            sequence=candidate_sequence,
+            first_patterns=EXECUTE_PATTERNS,
+            second_patterns=SEND_PATTERNS,
+        )
 
-        if current_is_send and previous_is_read:
+        if read_send_pair:
             score += self._config.tool_chain_read_send_transition_score
             signals.append("read_then_send_transition")
 
-        if current_is_send and previous_is_execute:
+        if execute_send_pair:
             score += self._config.tool_chain_execute_send_transition_score
             signals.append("execute_then_send_transition")
+
+        execute_streak = self._max_category_streak(
+            sequence=candidate_sequence,
+            patterns=EXECUTE_PATTERNS,
+        )
+        if execute_streak >= 3:
+            score += 0.95
+            signals.append(f"execute_chain_streak_{execute_streak}")
 
         total_calls = len(candidate_sequence)
         if total_calls > self._config.tool_chain_high_call_velocity_threshold:
             score += self._config.tool_chain_high_call_velocity_bonus
             signals.append(f"high_call_velocity_{total_calls}_calls")
+
+        if total_calls >= 5:
+            score += 0.65
+            signals.append(f"chain_depth_{total_calls}")
 
         current_count = candidate_sequence.count(current)
         if current_count > self._config.tool_chain_repeated_tool_threshold:
@@ -420,6 +495,59 @@ class ToolChainDetector(BaseDetector):
             action=action,
             severity=severity,
         )
+
+    def _has_ordered_category_pair(
+        self,
+        sequence: list[str],
+        first_patterns: list[str],
+        second_patterns: list[str],
+    ) -> bool:
+        """Check whether first-category then second-category exists in order.
+
+        Args:
+            sequence: Tool names in call order.
+            first_patterns: Category terms for the first tool.
+            second_patterns: Category terms for the second tool.
+
+        Returns:
+            True when ordered pair exists, False otherwise.
+        """
+        first_seen = False
+        for tool_name in sequence:
+            if not first_seen and self._is_category(tool_name, first_patterns):
+                first_seen = True
+                continue
+
+            if first_seen and self._is_category(tool_name, second_patterns):
+                return True
+
+        return False
+
+    def _max_category_streak(
+        self,
+        sequence: list[str],
+        patterns: list[str],
+    ) -> int:
+        """Compute the maximum consecutive streak for a tool category.
+
+        Args:
+            sequence: Tool names in call order.
+            patterns: Category pattern list.
+
+        Returns:
+            Maximum consecutive streak length.
+        """
+        best = 0
+        current = 0
+
+        for tool_name in sequence:
+            if self._is_category(tool_name, patterns):
+                current += 1
+                best = max(best, current)
+            else:
+                current = 0
+
+        return best
 
     def _is_category(
         self,
