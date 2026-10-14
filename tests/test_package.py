@@ -20,8 +20,12 @@ def test_core_dependencies_stay_light() -> None:
 
 
 def test_import_is_fast_and_pulls_nothing_heavy() -> None:
+    # Dependencies are imported before the clock starts: pydantic's own import time varies
+    # several-fold between machines, and this test is about AgentShield's share.
     code = (
         "import sys, time\n"
+        "import yaml\n"
+        "from pydantic import BaseModel  # plain 'import pydantic' is a lazy shim\n"
         "t = time.perf_counter()\n"
         "import agentshield\n"
         "print(time.perf_counter() - t)\n"

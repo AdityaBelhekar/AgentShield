@@ -2,6 +2,8 @@
 
 One stage per day, 19 stages, three releases. Design rationale and the findings referenced as C1–C12 are in [AGENTSHIELD_V2_REPORT.md](AGENTSHIELD_V2_REPORT.md).
 
+**Progress:** stages 0–3 done (2026-10-15). Next: stage 4.
+
 **Rules**
 
 - Stage 0 lands on `main`. Everything else lands on a `v2` branch until the 0.2.0 release.
@@ -48,7 +50,7 @@ One stage per day, 19 stages, three releases. Design rationale and the findings 
 ### Stage 1 — Clean slate
 
 - **Build:** Create the `v2` branch. Delete everything on the report's cut list plus the V1 runtime path (`runtime.py`, `detection/`, `adapters/`, `events/emitter.py`, `canary/`, `provenance/`, `cli/certify*`, attack library, Dockerfiles). Keep `exceptions.py`, `docs/`, CI. Cut `pyproject.toml` dependencies to `pydantic` and `pyyaml`. Move tests to `tests/`, point `testpaths` at it, run `pytest` and `ruff` in CI on 3.11–3.13.
-- **Done when:** `pip install -e .` pulls no torch, redis or langchain; `import agentshield` takes under half a second; CI runs a real `pytest` job.
+- **Done when:** `pip install -e .` pulls no torch, redis or langchain; `import agentshield` adds under half a second on top of importing pydantic itself (pydantic's own import time varies several-fold between machines); CI runs a real `pytest` job.
 - **Fixes:** C11, the packaging findings.
 
 ### Stage 2 — Types and sessions
@@ -61,6 +63,7 @@ One stage per day, 19 stages, three releases. Design rationale and the findings 
 
 - **Build:** YAML → pydantic models: per-tool labels and `deny`, `unlabelled_tools` default, `flows`, `limits`. Exact tool-name matching only. A content hash of the loaded policy for later audit records. Two built-ins: `monitor` and `strict` (default-deny for unlabelled tools).
 - **Done when:** valid policies load; a typo'd key, unknown label or unknown action is rejected with a message naming the bad field.
+- **As built:** tools declare a single `labels:` list (`untrusted`, `confidential`, `external`) rather than the report's `source`/`sensitivity`/`sink` sketch; flows match on `session_has`, `tool_has` and `tool`; built-ins compose via `extends:`. Syntax reference: the docstring at the top of `agentshield/policy.py`.
 
 ### Stage 4 — Enforcement engine
 
