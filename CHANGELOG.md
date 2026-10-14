@@ -35,8 +35,16 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Changed
+- README, QUICKSTART and the docs home page no longer claim protections 0.1.x does not provide; each now carries an "experimental, not a security boundary" notice.
+- Package classifier changed from Beta to Alpha.
+
+### Removed
+- `security_audit_report.md`: it credited a `SENSITIVITY_SCAN` mechanism that does not exist in the code, and its harness is not in the repository.
+
+### Fixed
+- `publish.yml` was invalid YAML, so no release could run.
+- `mypy --strict` failures caused by redis-py 8 no longer declaring `Redis` as generic.
+
 ### Planned
-- V1.1: ML models trained on HackAPrompt dataset (600k+ examples)
-- ASIN (AgentShield Intelligence Network) — opt-in anonymized telemetry + monthly model updates
-- Async-native runtime (arun() for all interceptors)
-- LangGraph adapter
+- V2 redesign, staged in [V2_STAGES.md](V2_STAGES.md). Findings that motivate it: [AGENTSHIELD_V2_REPORT.md](AGENTSHIELD_V2_REPORT.md).

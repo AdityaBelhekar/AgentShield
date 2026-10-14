@@ -1,9 +1,9 @@
 # AgentShield
 
-!!! tip "The security primitive the agent ecosystem is missing."
-	AgentShield wraps your existing AI agent with runtime threat detection, policy enforcement, and forensic telemetry.
+!!! warning "0.1.x is experimental — do not use it as a security boundary"
+	An audit of 0.1.0 found that several protections described on this site do not work as written: exfiltration chains are not blocked by the built-in policies, deny-listed tools can run, canary tokens are never injected, and goal-drift and DNA detection are inactive through `shield()`. See the [audit report](https://github.com/AdityaBelhekar/AgentShield/blob/main/AGENTSHIELD_V2_REPORT.md) and the [V2 plan](https://github.com/AdityaBelhekar/AgentShield/blob/main/V2_STAGES.md).
 
-AgentShield is a production security runtime SDK for AI agents. It is not an agent, and it is not a chatbot. It is a firewall layer that sits between your agent runtime and the outside world, inspecting execution events in real time and enforcing policy decisions before dangerous behavior propagates.
+AgentShield is an experimental security runtime SDK for AI agents. It is not an agent, and it is not a chatbot. It is a firewall layer that sits between your agent runtime and the outside world, inspecting execution events in real time and enforcing policy decisions before dangerous behavior propagates.
 
 ```python
 from agentshield import shield
