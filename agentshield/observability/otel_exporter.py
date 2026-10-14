@@ -79,7 +79,7 @@ class OTelExporter:
 
     _otel_config: OTelConfig
     _redis_url: str
-    _redis: aioredis.Redis[Any] | None
+    _redis: aioredis.Redis | None
     _task: asyncio.Task[None] | None
     _session_spans: dict[str, Any]
     _tracer_provider: Any | None

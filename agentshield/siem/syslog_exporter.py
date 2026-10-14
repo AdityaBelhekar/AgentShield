@@ -38,7 +38,7 @@ class SyslogSIEMExporter:
     _redis_url: str
     _hostname: str
     _formatter: CEFFormatter
-    _redis: aioredis.Redis[Any] | None
+    _redis: aioredis.Redis | None
     _task: asyncio.Task[None] | None
     _active: bool
 

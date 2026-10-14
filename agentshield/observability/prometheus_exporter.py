@@ -38,7 +38,7 @@ class PrometheusExporter:
     _port: int
     _redis_url: str
     _redis_channel: str
-    _redis: aioredis.Redis[Any] | None
+    _redis: aioredis.Redis | None
     _task: asyncio.Task[None] | None
     _server_thread: threading.Thread | None
     _session_start_times: dict[str, float]

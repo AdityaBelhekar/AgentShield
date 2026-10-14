@@ -39,7 +39,7 @@ class HttpSIEMExporter:
     _config: SIEMConfig
     _version: str
     _redis_url: str
-    _redis: aioredis.Redis[Any] | None
+    _redis: aioredis.Redis | None
     _task: asyncio.Task[None] | None
     _active: bool
 

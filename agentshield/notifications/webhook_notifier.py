@@ -35,7 +35,7 @@ class WebhookNotifier:
 
     _webhook_config: WebhookConfig
     _redis_url: str
-    _redis: aioredis.Redis[Any] | None
+    _redis: aioredis.Redis | None
     _task: asyncio.Task[None] | None
     _slack: SlackNotifier | None
     _pagerduty: PagerDutyNotifier | None

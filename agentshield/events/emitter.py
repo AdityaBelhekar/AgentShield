@@ -43,8 +43,8 @@ class EventEmitter:
     """
 
     _config: AgentShieldConfig
-    _redis_client: redis.Redis[bytes] | None
-    _async_redis_client: aioredis.Redis[bytes] | None
+    _redis_client: redis.Redis | None
+    _async_redis_client: aioredis.Redis | None
     _audit_log_path: Path
     _scrubber: EventScrubber
     _emit_count: int
@@ -254,7 +254,7 @@ class EventEmitter:
             "total_failed": self._fail_count,
         }
 
-    def _get_redis(self) -> redis.Redis[bytes]:
+    def _get_redis(self) -> redis.Redis:
         """Lazily initialize and return the synchronous Redis client.
 
         Returns:
@@ -270,7 +270,7 @@ class EventEmitter:
                     decode_responses=True,
                     max_connections=10,
                 )
-                client: redis.Redis[bytes] = redis.Redis(connection_pool=pool)
+                client: redis.Redis = redis.Redis(connection_pool=pool)
                 client.ping()
                 self._redis_client = client
                 logger.info(
@@ -284,7 +284,7 @@ class EventEmitter:
 
         return self._redis_client
 
-    def _get_async_redis(self) -> aioredis.Redis[bytes]:
+    def _get_async_redis(self) -> aioredis.Redis:
         """Lazily initialize and return the asynchronous Redis client.
 
         Returns:
