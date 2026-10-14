@@ -37,6 +37,10 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ### V2 (on the `v2` branch)
 
+#### Added
+- `Shield.session(user=, task=)`: a sync/async context manager that scopes one agent run. The current session lives in a `ContextVar`, so concurrent threads and asyncio tasks are isolated while work spawned inside a session shares it (stage 2).
+- Core types: `ToolCall`, `Decision`, `Verdict` (`allow` / `deny` / `ask`), `Label` (`untrusted` / `confidential` / `external`), `Session` (stage 2).
+
 #### Removed
 - The 0.1.x runtime: `shield()`, detectors, adapters, interceptors, canary, provenance, DNA, events, audit chain, policies, red-team CLI and certify. Replaced stage by stage per [V2_STAGES.md](V2_STAGES.md).
 - `backend/`, `agentshield-desktop/`, top-level `cli/`, Dockerfiles, `docker-compose.yml`, `Makefile`, `.env.example`.
