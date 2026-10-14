@@ -35,16 +35,32 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
-### Changed
+### V2 (on the `v2` branch)
+
+#### Removed
+- The 0.1.x runtime: `shield()`, detectors, adapters, interceptors, canary, provenance, DNA, events, audit chain, policies, red-team CLI and certify. Replaced stage by stage per [V2_STAGES.md](V2_STAGES.md).
+- `backend/`, `agentshield-desktop/`, top-level `cli/`, Dockerfiles, `docker-compose.yml`, `Makefile`, `.env.example`.
+- Slack, PagerDuty, SIEM, Prometheus and OpenTelemetry exporters (OpenTelemetry returns in stage 15).
+- Generated API reference pages for removed modules.
+
+#### Changed
+- Core dependencies are now `pydantic` and `pyyaml` only.
+- Version is read from `agentshield/__init__.py`.
+- Tests live in `tests/` and run in CI on Python 3.11–3.13; lint and format use ruff.
+
+### 0.1.x (on `main`)
+
+
+#### Changed
 - README, QUICKSTART and the docs home page no longer claim protections 0.1.x does not provide; each now carries an "experimental, not a security boundary" notice.
 - Package classifier changed from Beta to Alpha.
 
-### Removed
+#### Removed
 - `security_audit_report.md`: it credited a `SENSITIVITY_SCAN` mechanism that does not exist in the code, and its harness is not in the repository.
 
-### Fixed
+#### Fixed
 - `publish.yml` was invalid YAML, so no release could run.
 - `mypy --strict` failures caused by redis-py 8 no longer declaring `Redis` as generic.
 
-### Planned
+#### Planned
 - V2 redesign, staged in [V2_STAGES.md](V2_STAGES.md). Findings that motivate it: [AGENTSHIELD_V2_REPORT.md](AGENTSHIELD_V2_REPORT.md).

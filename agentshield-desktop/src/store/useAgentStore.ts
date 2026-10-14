@@ -1,1 +1,0 @@
-// AgentShield Security Console — global agent state store

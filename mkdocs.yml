@@ -89,14 +89,7 @@ nav:
       - Overview: redteam/overview.md
       - Running Attacks: redteam/running-attacks.md
       - AgentShield Certify: redteam/certify.md
-  - API Reference:
-      - shield(): api/shield.md
-      - SDK Reference: sdk-reference.md
-      - Runtime: api/runtime.md
-      - Detection Engine: api/detection-engine.md
-      - Events: api/events.md
-      - Policy: api/policy.md
-      - Exceptions: api/exceptions.md
+  - SDK Reference (0.1.x): sdk-reference.md
   - Contributing: contributing.md
 
 extra:

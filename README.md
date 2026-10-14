@@ -14,7 +14,7 @@
 >
 > An audit of 0.1.0 found that it does not block the attacks earlier versions of this README claimed it did. In particular, `read_file` → `send_email` exfiltration is **not blocked** under the `strict` or `no_exfiltration` policies, tools on the `strict` deny-list run on their first call, and LangGraph agents are not supported. Full findings, with reproductions: [AGENTSHIELD_V2_REPORT.md](AGENTSHIELD_V2_REPORT.md).
 >
-> A redesign (V2) is in progress: [V2_STAGES.md](V2_STAGES.md).
+> A redesign (V2) is in progress: [V2_STAGES.md](V2_STAGES.md). On the `v2` branch the 0.1.x API described below has been removed; this README is rewritten when V2 is released (stage 12).
 
 ```python
 from agentshield import shield

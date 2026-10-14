@@ -1,6 +1,6 @@
 # AgentShield — gitignore
 
-# Test harness — NEVER committed
+# Local scratch space (tests live in tests/ and are committed)
 /scratch/
 
 # Python
@@ -34,15 +34,6 @@ logs/
 # Runtime outputs
 output/
 reports/
-
-# Node / Frontend
-node_modules/
-.vite/
-frontend/dist/
-frontend/build/
-
-# Docker
-.docker/
 
 # OS
 .DS_Store

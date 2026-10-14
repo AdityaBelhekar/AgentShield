@@ -1,35 +1,7 @@
-from agentshield.runtime import shield, WrappedAgent, AgentShieldRuntime
-from agentshield.adapters.registry import AdapterRegistry
-from agentshield.exceptions import (
-    AgentShieldError,
-    PolicyViolationError,
-    PromptInjectionError,
-    GoalDriftError,
-    ToolCallBlockedError,
-    MemoryPoisonError,
-    BehavioralAnomalyError,
-    InterAgentInjectionError,
-    ConfigurationError,
-)
-from agentshield.policy.models import BUILTIN_POLICIES
-from agentshield.config import AgentShieldConfig
+"""AgentShield: a policy-enforcing reference monitor for AI agent tool calls."""
 
-__version__ = "0.1.0"
-__all__ = [
-    "shield",
-    "WrappedAgent",
-    "AgentShieldRuntime",
-    "AdapterRegistry",
-    "AgentShieldError",
-    "PolicyViolationError",
-    "PromptInjectionError",
-    "GoalDriftError",
-    "ToolCallBlockedError",
-    "MemoryPoisonError",
-    "BehavioralAnomalyError",
-    "InterAgentInjectionError",
-    "ConfigurationError",
-    "BUILTIN_POLICIES",
-    "AgentShieldConfig",
-    "__version__",
-]
+from agentshield.exceptions import AgentShieldError
+
+__version__ = "0.2.0.dev0"
+
+__all__ = ["AgentShieldError", "__version__"]
