@@ -38,6 +38,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ### V2 (on the `v2` branch)
 
 #### Added
+- `EnforcementEngine` (stage 4): `check(call)` evaluates every tool call in order — deny-list, unlabelled default, flow rules against session taint, then limits — and `record(call, result)` updates taint and counters. Fail-closed: an internal error returns `deny`. `monitor` mode reports the decision it would have enforced and returns `allow`. `Shield.engine` exposes it.
 - `Shield.session(user=, task=)`: a sync/async context manager that scopes one agent run. The current session lives in a `ContextVar`, so concurrent threads and asyncio tasks are isolated while work spawned inside a session shares it (stage 2).
 - Policy manifest (`agentshield.policy`, stage 3): YAML or dict validated into immutable models — per-tool `labels` and `deny`, `unlabelled_tools` default, `flows` (deny/ask on session taint × tool), `limits`. Exact tool-name matching. Built-ins `strict` and `monitor`, composable with `extends:`. `Policy.digest` is a SHA-256 of the effective policy, stable across processes. Unknown keys, labels, actions, undeclared flow tools and duplicate YAML keys are rejected with the offending field named.
 - `Shield(policy)` / `Shield.from_policy(source)`; `Shield()` defaults to `strict`.

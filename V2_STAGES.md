@@ -2,7 +2,7 @@
 
 One stage per day, 19 stages, three releases. Design rationale and the findings referenced as C1–C12 are in [AGENTSHIELD_V2_REPORT.md](AGENTSHIELD_V2_REPORT.md).
 
-**Progress:** stages 0–3 done (2026-10-15). Next: stage 4.
+**Progress:** stages 0–4 done (2026-10-22). Next: stage 5.
 
 **Rules**
 
