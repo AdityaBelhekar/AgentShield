@@ -7,8 +7,16 @@ rejected instead of silently overwritten.
     version: 2
     extends: strict                 # optional: start from a built-in policy
     tools:
-      read_file:  {labels: [confidential]}
-      web_fetch:  {labels: [untrusted, external]}
+      read_file:
+        labels: [confidential]
+        args:
+          path:
+            deny_glob: ["**/.env", "**/.ssh/**"]
+            sensitive_glob: ["**/secrets/**"]
+      web_fetch:
+        labels: [untrusted, external]
+        args:
+          url: {allow_domains: [docs.example.com]}
       send_email: {labels: [external]}
       bash:       {deny: true}
     flows:
@@ -23,12 +31,20 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import re
 from collections.abc import Hashable, Mapping
 from pathlib import Path
 from typing import Any, Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, PositiveInt, ValidationError, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    PositiveInt,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
 from agentshield.exceptions import PolicyError
 from agentshield.session import Label, Verdict
@@ -38,11 +54,61 @@ class _Model(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
 
+class ArgRule(_Model):
+    """Checks on one tool argument, matched by parameter name.
+
+    ``deny_glob`` and ``deny_regex`` reject the call before the tool runs.
+    ``allow_domains`` restricts a URL argument to the listed hosts and their subdomains.
+    ``sensitive_glob`` does not reject the call: a match adds ``confidential`` taint to
+    the session once the call has run.
+    """
+
+    deny_glob: tuple[str, ...] = ()
+    sensitive_glob: tuple[str, ...] = ()
+    allow_domains: tuple[str, ...] = ()
+    deny_regex: tuple[str, ...] = ()
+
+    @field_validator("deny_glob", "sensitive_glob")
+    @classmethod
+    def _globs_are_not_empty(cls, patterns: tuple[str, ...]) -> tuple[str, ...]:
+        cleaned = [pattern.strip() for pattern in patterns]
+        if any(not pattern for pattern in cleaned):
+            raise ValueError("path patterns must not be empty")
+        return tuple(cleaned)
+
+    @field_validator("deny_regex")
+    @classmethod
+    def _regexes_compile(cls, patterns: tuple[str, ...]) -> tuple[str, ...]:
+        for pattern in patterns:
+            try:
+                re.compile(pattern)
+            except re.error as exc:
+                raise ValueError(f"invalid regex {pattern!r}: {exc}") from None
+        return patterns
+
+    @field_validator("allow_domains")
+    @classmethod
+    def _domains_are_bare_hostnames(cls, domains: tuple[str, ...]) -> tuple[str, ...]:
+        cleaned: list[str] = []
+        for domain in domains:
+            host = domain.strip().lower()
+            if not host:
+                raise ValueError("domain entries must not be empty")
+            if "/" in host or ":" in host or "*" in host or " " in host:
+                raise ValueError(
+                    f"{domain!r} must be a bare hostname such as 'example.com' "
+                    "(subdomains are included; wildcards, schemes and ports are not)"
+                )
+            cleaned.append(host)
+        return tuple(cleaned)
+
+
 class ToolRule(_Model):
-    """What one tool touches. Tool names are matched exactly."""
+    """What one tool touches, and which of its arguments must be checked."""
 
     labels: frozenset[Label] = frozenset()
     deny: bool = False
+    args: dict[str, ArgRule] = {}
 
 
 class FlowCondition(_Model):

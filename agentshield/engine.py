@@ -10,6 +10,7 @@ same evaluation runs and the decision is reported, but the returned verdict is `
 
 from __future__ import annotations
 
+from agentshield.arguments import argument_violation, sensitive_argument_touched
 from agentshield.exceptions import AgentShieldError
 from agentshield.policy import Flow, Policy
 from agentshield.session import Decision, Label, Session, ToolCall, Verdict, current_session
@@ -42,6 +43,8 @@ class EnforcementEngine:
         rule = self.policy.tools.get(call.name)
         if rule is not None:
             active.taint.update(rule.labels)
+            if sensitive_argument_touched(call, rule):
+                active.taint.add(Label.CONFIDENTIAL)
 
     def _decide(self, call: ToolCall, session: Session | None) -> Decision:
         if session is None:
@@ -68,6 +71,16 @@ class EnforcementEngine:
                     rule=f"tools.{call.name}.deny",
                 )
             )
+        else:
+            violation = argument_violation(call, rule)
+            if violation is not None:
+                return self._monitor(
+                    Decision(
+                        Verdict.DENY,
+                        violation,
+                        rule=f"tools.{call.name}.args",
+                    )
+                )
 
         labels = rule.labels if rule is not None else frozenset()
         for flow in self.policy.flows:

@@ -38,6 +38,8 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ### V2 (on the `v2` branch)
 
 #### Added
+- Argument checks (stage 6): a tool's manifest can name an argument and set `deny_glob`, `sensitive_glob`, `allow_domains` or `deny_regex`. Violations deny the call before the tool runs. A `sensitive_glob` match does not deny — it adds `confidential` taint to the session after the call, for the flow rules to see.
+- Secret egress scan (stage 6): arguments going to a tool labelled `external` are checked for credential-shaped values (AWS access keys, private-key headers, GitHub, Slack, Google, Stripe, OpenAI and Anthropic key formats). The denial names the credential type, never the value.
 - `Shield.tool(name)` (stage 5): wraps a plain sync or async callable so every call is checked before it runs and recorded after. Arguments are bound to the function's parameter names, so a policy can match them. Denied calls raise `PolicyViolationError`; the callable's body never runs.
 - Approvals for `ask` decisions (stage 5): `Shield(..., approval=handler)` receives the `ToolCall` and `Decision` and returns whether to allow that one call. The default raises `ApprovalRequired`; `terminal_approval` prompts on the terminal. An approval never changes the policy or clears session taint.
 - `examples/exfil_demo.py`: a scripted agent that follows an instruction in a fetched page, reads a secret and tries to email it. It shows the call blocked before `send_email` runs, with no LLM or API key.
