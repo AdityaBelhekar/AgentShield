@@ -4,6 +4,7 @@ from agentshield.approvals import ApprovalHandler, terminal_approval
 from agentshield.exceptions import (
     AgentShieldError,
     ApprovalRequired,
+    CanaryLeakError,
     PolicyError,
     PolicyViolationError,
 )
@@ -23,6 +24,7 @@ __all__ = [
     "AgentShieldError",
     "ApprovalHandler",
     "ApprovalRequired",
+    "CanaryLeakError",
     "Decision",
     "Label",
     "PolicyError",

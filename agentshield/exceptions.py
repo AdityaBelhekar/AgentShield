@@ -15,3 +15,7 @@ class PolicyViolationError(AgentShieldError):
 
 class ApprovalRequired(PolicyViolationError):  # noqa: N818 - name fixed by the V2 plan
     """A tool call needs human approval, and none was granted."""
+
+
+class CanaryLeakError(PolicyViolationError):
+    """The session's canary marker appeared in text that was leaving the system."""

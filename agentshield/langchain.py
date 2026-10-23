@@ -58,7 +58,7 @@ class ShieldMiddleware(AgentMiddleware[Any, Any, Any]):
             self.shield.engine.record(call)
             raise
         self.shield.engine.record(call)
-        return result
+        return self._spotlight(call, result)
 
     async def awrap_tool_call(
         self, request: ToolCallRequest, handler: AsyncToolHandler
@@ -71,6 +71,13 @@ class ShieldMiddleware(AgentMiddleware[Any, Any, Any]):
             self.shield.engine.record(call)
             raise
         self.shield.engine.record(call)
+        return self._spotlight(call, result)
+
+    def _spotlight(self, call: ToolCall, result: ToolResult) -> ToolResult:
+        if isinstance(result, ToolMessage):
+            content = self.shield._spotlight_result(call, result.content)
+            if content is not result.content:
+                return result.model_copy(update={"content": content})
         return result
 
 

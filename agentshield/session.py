@@ -18,6 +18,7 @@ from types import TracebackType
 from typing import Any
 
 from agentshield.exceptions import AgentShieldError
+from agentshield.spotlight import new_canary
 
 
 class Label(StrEnum):
@@ -67,6 +68,7 @@ class Session:
     user: str | None = None
     task: str | None = None
     id: str = field(default_factory=lambda: uuid.uuid4().hex)
+    canary: str = field(default_factory=new_canary)
     taint: set[Label] = field(default_factory=set)
     tool_calls: int = 0
     identical_calls: Counter[str] = field(default_factory=Counter)

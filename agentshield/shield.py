@@ -10,9 +10,22 @@ from typing import Any, overload
 
 from agentshield.approvals import ApprovalHandler
 from agentshield.engine import EnforcementEngine
-from agentshield.exceptions import ApprovalRequired, PolicyViolationError
+from agentshield.exceptions import (
+    AgentShieldError,
+    ApprovalRequired,
+    CanaryLeakError,
+    PolicyViolationError,
+)
 from agentshield.policy import Policy, load_policy
-from agentshield.session import Session, SessionScope, ToolCall, Verdict
+from agentshield.session import (
+    Label,
+    Session,
+    SessionScope,
+    ToolCall,
+    Verdict,
+    current_session,
+)
+from agentshield.spotlight import canary_instruction, delimit
 
 ToolFunction = Callable[..., Any]
 
@@ -43,6 +56,28 @@ class Shield:
         Use as ``with shield.session(user=...) as s:`` or ``async with``.
         """
         return SessionScope(Session(user=user, task=task))
+
+    def system_prompt(self, text: str) -> str:
+        """Append this session's canary instruction to a system prompt.
+
+        Build the prompt inside ``with shield.session(...)`` so the marker belongs to the
+        run it protects. ``check_output`` and the engine's argument check look for it.
+        """
+        session = current_session()
+        if session is None:
+            raise AgentShieldError("system_prompt() needs an active session")
+        return f"{text}\n\n{canary_instruction(session.canary)}"
+
+    def check_output(self, text: str) -> str:
+        """Return ``text``, or raise ``CanaryLeakError`` if it leaks the session marker.
+
+        Call this on the model's final answer. It is a check, not a filter: the caller
+        decides what to do with the exception.
+        """
+        session = current_session()
+        if session is not None and session.canary in text:
+            raise CanaryLeakError("output contains the session's canary marker")
+        return text
 
     def langchain(self) -> Any:
         """Return middleware that routes a LangChain / LangGraph agent's tool calls here.
@@ -86,7 +121,7 @@ class Shield:
                     self.engine.record(call)
                     raise
                 self.engine.record(call)
-                return result
+                return self._spotlight_result(call, result)
 
             return async_wrapper
 
@@ -99,9 +134,18 @@ class Shield:
                 self.engine.record(call)
                 raise
             self.engine.record(call)
-            return result
+            return self._spotlight_result(call, result)
 
         return wrapper
+
+    def _spotlight_result(self, call: ToolCall, result: Any) -> Any:
+        """Delimit a string result from an ``untrusted`` tool; leave other results alone."""
+        if not isinstance(result, str):
+            return result
+        rule = self.policy.tools.get(call.name)
+        if rule is None or Label.UNTRUSTED not in rule.labels:
+            return result
+        return delimit(result, source=call.name)
 
     def _authorize(self, call: ToolCall) -> ToolCall:
         """Run the engine and any approval handler for one call, or raise."""

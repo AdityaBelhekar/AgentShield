@@ -14,6 +14,7 @@ from agentshield.arguments import argument_violation, sensitive_argument_touched
 from agentshield.exceptions import AgentShieldError
 from agentshield.policy import Flow, Policy
 from agentshield.session import Decision, Label, Session, ToolCall, Verdict, current_session
+from agentshield.spotlight import contains_marker
 
 
 class EnforcementEngine:
@@ -81,6 +82,15 @@ class EnforcementEngine:
                         rule=f"tools.{call.name}.args",
                     )
                 )
+
+        if contains_marker(call.args, session.canary):
+            return self._monitor(
+                Decision(
+                    Verdict.DENY,
+                    "a tool argument contains the session's canary marker",
+                    rule="canary",
+                )
+            )
 
         labels = rule.labels if rule is not None else frozenset()
         for flow in self.policy.flows:

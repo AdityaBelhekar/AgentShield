@@ -2,7 +2,7 @@
 
 One stage per day, 19 stages, three releases. Design rationale and the findings referenced as C1–C12 are in [AGENTSHIELD_V2_REPORT.md](AGENTSHIELD_V2_REPORT.md).
 
-**Progress:** stages 0–7 done (2026-10-23). Next: stage 8.
+**Progress:** stages 0–8 done (2026-10-23). Next: stage 9.
 
 **Rules**
 
@@ -99,6 +99,7 @@ One stage per day, 19 stages, three releases. Design rationale and the findings 
 - **Build:** Results from `untrusted` tools are wrapped in explicit data delimiters before going back to the model. A random per-session marker for the system prompt, with a check that it never appears in outbound tool arguments or final output.
 - **Done when:** tests show an untrusted result arrives delimited, and a tool call whose arguments contain the marker is denied.
 - **Fixes:** the canary half of C3, done as a leak detector.
+- **As built:** `shield.system_prompt(text)` appends the marker instruction; the engine denies a call whose arguments contain the marker even when unlabelled tools are allowed; `shield.check_output(text)` covers the final answer. Delimiters use a per-result nonce so fetched content cannot close the block early.
 
 ### Stage 9 — Signed audit log and verify CLI
 
