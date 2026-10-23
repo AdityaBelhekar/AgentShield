@@ -27,6 +27,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import threading
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -147,6 +148,7 @@ class AuditLog:
         self._since_checkpoint = 0
         self._signed = key is not None
         self._checkpoint_every = checkpoint_every
+        self._lock = threading.RLock()
         self._load()
         self._fh = self.path.open("a", encoding="utf-8", newline="\n")
 
@@ -168,41 +170,43 @@ class AuditLog:
         policy: str | None = None,
     ) -> None:
         """Append one decision. Redaction happens before the record is hashed."""
-        if self._fh is None:
-            raise AuditError("the audit log is closed")
-        record: dict[str, Any] = {
-            "type": "record",
-            "seq": self._sequence,
-            "ts": _now(),
-            "session": session.id if session is not None else None,
-            "user": redact(session.user) if session is not None else None,
-            "task": redact(session.task) if session is not None else None,
-            "policy": policy,
-            "tool": redact(call.name),
-            "args": redact(dict(call.args)),
-            "verdict": decision.verdict.value,
-            "rule": decision.rule,
-            "reason": redact(decision.reason),
-            "prev": self._last_hash,
-        }
-        record["hash"] = record_digest(record)
-        self._append(record)
-        self._sequence += 1
-        self._last_hash = str(record["hash"])
-        self._since_checkpoint += 1
-        if self._signed and self._since_checkpoint >= self._checkpoint_every:
-            self._checkpoint()
+        with self._lock:
+            if self._fh is None:
+                raise AuditError("the audit log is closed")
+            record: dict[str, Any] = {
+                "type": "record",
+                "seq": self._sequence,
+                "ts": _now(),
+                "session": session.id if session is not None else None,
+                "user": redact(session.user) if session is not None else None,
+                "task": redact(session.task) if session is not None else None,
+                "policy": policy,
+                "tool": redact(call.name),
+                "args": redact(dict(call.args)),
+                "verdict": decision.verdict.value,
+                "rule": decision.rule,
+                "reason": redact(decision.reason),
+                "prev": self._last_hash,
+            }
+            record["hash"] = record_digest(record)
+            self._append(record)
+            self._sequence += 1
+            self._last_hash = str(record["hash"])
+            self._since_checkpoint += 1
+            if self._signed and self._since_checkpoint >= self._checkpoint_every:
+                self._checkpoint()
 
     def close(self) -> None:
         """Sign a final checkpoint and close the file. Safe to call twice."""
-        if self._fh is None:
-            return
-        try:
-            if self._signed and self._since_checkpoint > 0:
-                self._checkpoint()
-        finally:
-            self._fh.close()
-            self._fh = None
+        with self._lock:
+            if self._fh is None:
+                return
+            try:
+                if self._signed and self._since_checkpoint > 0:
+                    self._checkpoint()
+            finally:
+                self._fh.close()
+                self._fh = None
 
     def __enter__(self) -> AuditLog:
         return self

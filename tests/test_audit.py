@@ -7,6 +7,7 @@ hashes passed verification.
 from __future__ import annotations
 
 import json
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -150,6 +151,38 @@ def test_verification_passes_after_50000_records(tmp_path: Path) -> None:
     assert report.valid, report.errors[:3]
     assert report.records == 50_000
     assert report.checkpoints == 10
+
+
+def test_concurrent_writes_produce_one_valid_chain(tmp_path: Path) -> None:
+    path = tmp_path / "audit.jsonl"
+    log = AuditLog(path, key=Ed25519PrivateKey.generate(), checkpoint_every=25)
+    barrier = threading.Barrier(4)
+    errors: list[BaseException] = []
+
+    def worker(worker_id: int) -> None:
+        try:
+            barrier.wait()
+            for index in range(50):
+                log.write(
+                    ToolCall("calc", {"worker": worker_id, "i": index}),
+                    ALLOW,
+                    Session(),
+                )
+        except BaseException as exc:  # surfaced below; pytest can't see thread failures
+            errors.append(exc)
+
+    threads = [threading.Thread(target=worker, args=(n,)) for n in range(4)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    log.close()
+
+    assert not errors
+    report = verify_audit(path)
+    assert report.valid, report.errors
+    assert report.records == 200
+    assert [record["seq"] for record in read_records(path)] == list(range(200))
 
 
 def test_resuming_a_signed_log_needs_the_same_key(tmp_path: Path) -> None:
