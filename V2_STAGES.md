@@ -2,7 +2,7 @@
 
 One stage per day, 19 stages, three releases. Design rationale and the findings referenced as C1–C12 are in [AGENTSHIELD_V2_REPORT.md](AGENTSHIELD_V2_REPORT.md).
 
-**Progress:** stages 0–6 done (2026-10-22). Next: stage 7.
+**Progress:** stages 0–7 done (2026-10-23). Next: stage 8.
 
 **Rules**
 
@@ -91,6 +91,7 @@ One stage per day, 19 stages, three releases. Design rationale and the findings 
 - **Build:** `shield.langchain()` returning an agent middleware that routes every tool call through the engine, sync and async. Lives behind a `[langchain]` extra. Uses the framework's own tool-call hook, no attribute patching.
 - **Done when:** with a real compiled LangGraph agent and a fake chat model: a denied tool never executes, an allowed tool returns its normal result, and the same holds when the agent is streamed.
 - **Fixes:** C4, C5.
+- **As built:** against `langchain` 1.4.7 / `langchain-core` 1.7.0, the hook is `AgentMiddleware.wrap_tool_call(request, handler)` with `awrap_tool_call` for async; the tests drive a real compiled graph with a scripted chat model for invoke, stream, ainvoke and astream.
 - **Risk:** the middleware hook signature must be checked against the installed LangChain version on the day; may spill.
 
 ### Stage 8 — Result labelling, spotlighting, canary leak check

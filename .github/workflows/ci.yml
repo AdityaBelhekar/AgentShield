@@ -15,7 +15,7 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install
-        run: pip install -e ".[dev]"
+        run: pip install -e ".[dev,langchain]"
       - name: Ruff lint
         run: ruff check .
       - name: Ruff format
@@ -35,7 +35,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install
-        run: pip install -e ".[dev]"
+        run: pip install -e ".[dev,langchain]"
       - name: Pytest
         run: pytest
 

@@ -44,6 +44,21 @@ class Shield:
         """
         return SessionScope(Session(user=user, task=task))
 
+    def langchain(self) -> Any:
+        """Return middleware that routes a LangChain / LangGraph agent's tool calls here.
+
+        Pass it to ``create_agent(..., middleware=[shield.langchain()])``. Needs the
+        ``[langchain]`` extra.
+        """
+        try:
+            from agentshield.langchain import ShieldMiddleware
+        except ImportError as exc:  # pragma: no cover - depends on the environment
+            raise ImportError(
+                "Shield.langchain() needs the LangChain extra: "
+                'pip install "agentshield-x[langchain]"'
+            ) from exc
+        return ShieldMiddleware(self)
+
     @overload
     def tool(self, name: str) -> Callable[[ToolFunction], ToolFunction]: ...
 
@@ -64,26 +79,32 @@ class Shield:
 
             @wraps(fn)
             async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
-                call = self._gate(name, _bind_arguments(fn, args, kwargs))
+                call = self._authorize(ToolCall(name, _bind_arguments(fn, args, kwargs)))
                 try:
-                    return await fn(*args, **kwargs)
-                finally:
+                    result = await fn(*args, **kwargs)
+                except BaseException:
                     self.engine.record(call)
+                    raise
+                self.engine.record(call)
+                return result
 
             return async_wrapper
 
         @wraps(fn)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
-            call = self._gate(name, _bind_arguments(fn, args, kwargs))
+            call = self._authorize(ToolCall(name, _bind_arguments(fn, args, kwargs)))
             try:
-                return fn(*args, **kwargs)
-            finally:
+                result = fn(*args, **kwargs)
+            except BaseException:
                 self.engine.record(call)
+                raise
+            self.engine.record(call)
+            return result
 
         return wrapper
 
-    def _gate(self, name: str, arguments: dict[str, Any]) -> ToolCall:
-        call = ToolCall(name=name, args=arguments)
+    def _authorize(self, call: ToolCall) -> ToolCall:
+        """Run the engine and any approval handler for one call, or raise."""
         decision = self.engine.check(call)
         if decision.verdict is Verdict.DENY:
             raise PolicyViolationError(decision.reason)

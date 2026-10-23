@@ -38,6 +38,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ### V2 (on the `v2` branch)
 
 #### Added
+- LangChain / LangGraph middleware (stage 7): `shield.langchain()` returns agent middleware that routes every tool call through the engine using the framework's `wrap_tool_call` hook, sync and async. Pass it to `create_agent(..., middleware=[...])`; `invoke`, `stream`, `ainvoke` and `astream` are covered. Denied calls raise before the tool body runs. Lives behind the `[langchain]` extra.
 - Argument checks (stage 6): a tool's manifest can name an argument and set `deny_glob`, `sensitive_glob`, `allow_domains` or `deny_regex`. Violations deny the call before the tool runs. A `sensitive_glob` match does not deny — it adds `confidential` taint to the session after the call, for the flow rules to see.
 - Secret egress scan (stage 6): arguments going to a tool labelled `external` are checked for credential-shaped values (AWS access keys, private-key headers, GitHub, Slack, Google, Stripe, OpenAI and Anthropic key formats). The denial names the credential type, never the value.
 - `Shield.tool(name)` (stage 5): wraps a plain sync or async callable so every call is checked before it runs and recorded after. Arguments are bound to the function's parameter names, so a policy can match them. Denied calls raise `PolicyViolationError`; the callable's body never runs.
