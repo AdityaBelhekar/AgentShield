@@ -11,6 +11,7 @@ same evaluation runs and the decision is reported, but the returned verdict is `
 from __future__ import annotations
 
 from agentshield.arguments import argument_violation, sensitive_argument_touched
+from agentshield.audit import AuditLog
 from agentshield.exceptions import AgentShieldError
 from agentshield.policy import Flow, Policy
 from agentshield.session import Decision, Label, Session, ToolCall, Verdict, current_session
@@ -20,19 +21,32 @@ from agentshield.spotlight import contains_marker
 class EnforcementEngine:
     """Applies one immutable policy to tool calls for a session."""
 
-    def __init__(self, policy: Policy) -> None:
+    def __init__(self, policy: Policy, *, audit: AuditLog | None = None) -> None:
         self.policy = policy
+        self.audit = audit
 
     def check(self, call: ToolCall, session: Session | None = None) -> Decision:
         """Decide whether ``call`` may run. Never raises; an internal error is a deny."""
+        active = session if session is not None else current_session()
         try:
-            return self._decide(call, session if session is not None else current_session())
+            decision = self._decide(call, active)
         except Exception as exc:  # noqa: BLE001 - enforcement must fail closed
-            return Decision(
+            decision = Decision(
                 Verdict.DENY,
                 f"internal error while evaluating {call.name!r}: {type(exc).__name__}: {exc}",
                 rule="internal-error",
             )
+
+        if self.audit is not None:
+            try:
+                self.audit.write(call, decision, active, policy=self.policy.digest)
+            except Exception as exc:  # noqa: BLE001 - no audit, no authorization
+                return Decision(
+                    Verdict.DENY,
+                    f"audit failure while recording {call.name!r}: {type(exc).__name__}: {exc}",
+                    rule="audit-error",
+                )
+        return decision
 
     def record(self, call: ToolCall, result: object = None, session: Session | None = None) -> None:
         """Account for a completed tool call and taint the session with its labels."""

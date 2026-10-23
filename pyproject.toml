@@ -40,12 +40,18 @@ langchain = [
   "langchain>=1.0",
   "langgraph>=1.0",
 ]
+audit = [
+  "cryptography>=42",
+]
 dev = [
   "pytest>=8.0",
   "ruff>=0.6",
   "mypy>=1.10",
   "types-PyYAML",
 ]
+
+[project.scripts]
+agentshield = "agentshield.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/AdityaBelhekar/AgentShield"

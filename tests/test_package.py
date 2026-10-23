@@ -8,7 +8,17 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CORE_DEPENDENCIES = {"pydantic", "pyyaml"}
-HEAVY_MODULES = {"torch", "sentence_transformers", "numpy", "redis", "langchain_core", "openai"}
+HEAVY_MODULES = {
+    "torch",
+    "sentence_transformers",
+    "numpy",
+    "redis",
+    "langchain",
+    "langchain_core",
+    "langgraph",
+    "openai",
+    "cryptography",
+}
 
 
 def test_core_dependencies_stay_light() -> None:

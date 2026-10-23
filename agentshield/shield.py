@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, overload
 
 from agentshield.approvals import ApprovalHandler
+from agentshield.audit import AuditLog
 from agentshield.engine import EnforcementEngine
 from agentshield.exceptions import (
     AgentShieldError,
@@ -34,10 +35,15 @@ class Shield:
     """Holds one immutable policy, its enforcement engine, and opens sessions."""
 
     def __init__(
-        self, policy: Policy | None = None, *, approval: ApprovalHandler | None = None
+        self,
+        policy: Policy | None = None,
+        *,
+        approval: ApprovalHandler | None = None,
+        audit: AuditLog | str | Path | None = None,
     ) -> None:
         self.policy = policy if policy is not None else load_policy("strict")
-        self.engine = EnforcementEngine(self.policy)
+        self.audit = AuditLog(audit) if isinstance(audit, (str, Path)) else audit
+        self.engine = EnforcementEngine(self.policy, audit=self.audit)
         self.approval = approval
 
     @classmethod
@@ -46,9 +52,15 @@ class Shield:
         source: str | Path | Mapping[str, Any],
         *,
         approval: ApprovalHandler | None = None,
+        audit: AuditLog | str | Path | None = None,
     ) -> Shield:
         """Build a shield from a built-in policy name, a YAML file, or a mapping."""
-        return cls(load_policy(source), approval=approval)
+        return cls(load_policy(source), approval=approval, audit=audit)
+
+    def close(self) -> None:
+        """Flush a final signed checkpoint and close the audit log, if one is open."""
+        if self.audit is not None:
+            self.audit.close()
 
     def session(self, *, user: str | None = None, task: str | None = None) -> SessionScope:
         """Start a session for one agent run.

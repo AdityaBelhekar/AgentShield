@@ -2,7 +2,7 @@
 
 One stage per day, 19 stages, three releases. Design rationale and the findings referenced as C1–C12 are in [AGENTSHIELD_V2_REPORT.md](AGENTSHIELD_V2_REPORT.md).
 
-**Progress:** stages 0–8 done (2026-10-23). Next: stage 9.
+**Progress:** stages 0–9 done (2026-10-23). Next: stage 10.
 
 **Rules**
 
@@ -106,6 +106,7 @@ One stage per day, 19 stages, three releases. Design rationale and the findings 
 - **Build:** Append-only JSONL of every decision. Each record's hash covers the previous hash and all of its own fields. Signed checkpoints. On restart, resume from the file's tail. Redact before hashing. `agentshield audit verify <file>` shipped in the wheel.
 - **Done when:** three tests pass — a restart continues the same chain; deleting a record and re-hashing fails verification; verification still passes after 50,000 records.
 - **Fixes:** C8.
+- **As built:** records are canonical JSON with `seq`, timestamps, session/user/task, policy digest, redacted arguments, verdict, rule and reason. The header carries the Ed25519 public key and checkpoint interval; verification needs no private key. The whole file can still be rewritten by someone who replaces the header key too, so the public key should be anchored outside the file when that threat matters (external anchoring is out of scope for this release).
 
 ### Stage 10 — AgentDojo harness, one suite
 

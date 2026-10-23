@@ -1,4 +1,4 @@
-name: CI
+﻿name: CI
 
 on:
   push:
@@ -15,7 +15,7 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install
-        run: pip install -e ".[dev,langchain]"
+        run: pip install -e ".[dev,langchain,audit]"
       - name: Ruff lint
         run: ruff check .
       - name: Ruff format
@@ -35,7 +35,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install
-        run: pip install -e ".[dev,langchain]"
+        run: pip install -e ".[dev,langchain,audit]"
       - name: Pytest
         run: pytest
 

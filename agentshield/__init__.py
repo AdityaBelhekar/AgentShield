@@ -1,9 +1,11 @@
 """AgentShield: a policy-enforcing reference monitor for AI agent tool calls."""
 
 from agentshield.approvals import ApprovalHandler, terminal_approval
+from agentshield.audit import AuditLog
 from agentshield.exceptions import (
     AgentShieldError,
     ApprovalRequired,
+    AuditError,
     CanaryLeakError,
     PolicyError,
     PolicyViolationError,
@@ -24,6 +26,8 @@ __all__ = [
     "AgentShieldError",
     "ApprovalHandler",
     "ApprovalRequired",
+    "AuditError",
+    "AuditLog",
     "CanaryLeakError",
     "Decision",
     "Label",

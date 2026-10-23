@@ -10,6 +10,10 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping
 
+_SENSITIVE_KEY = re.compile(
+    r"(?i)(pass(word|wd)?|secret|token|api[-_]?key|auth|credential|cookie|private[-_]?key)"
+)
+
 _PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("AWS access key", re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b")),
     ("private key", re.compile(r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----")),
@@ -46,3 +50,31 @@ def find_secret(value: object, _depth: int = _MAX_DEPTH) -> str | None:
             if found is not None:
                 return found
     return None
+
+
+def redact(value: object, _depth: int = _MAX_DEPTH) -> object:
+    """Return a copy safe to write to a log: sensitive keys and credentials replaced.
+
+    Redaction happens before hashing, so the audit record never contains the value in the
+    first place. Unknown objects become strings so the result is always JSON-serialisable.
+    """
+    if _depth <= 0:
+        return "[REDACTED]"
+    if isinstance(value, bytes):
+        value = value.decode("utf-8", "replace")
+    if isinstance(value, str):
+        for description, pattern in _PATTERNS:
+            value = pattern.sub(f"[REDACTED:{description}]", value)
+        return value
+    if isinstance(value, Mapping):
+        return {
+            str(key): (
+                "[REDACTED]" if _SENSITIVE_KEY.search(str(key)) else redact(item, _depth - 1)
+            )
+            for key, item in value.items()
+        }
+    if isinstance(value, (list, tuple, set, frozenset)):
+        return [redact(item, _depth - 1) for item in value]
+    if isinstance(value, (int, float, bool)) or value is None:
+        return value
+    return redact(str(value), _depth - 1)
