@@ -42,6 +42,15 @@ flows:
     when: { session_has: [untrusted], tool: update_password }
     then: ask
 
+  # Untrusted content must not steer a sink on its own. The first full-suite run let
+  # user_task_0 and user_task_13 read an injected bill/address file and then call
+  # send_money/update_user_info; this closes that gap. It also asks on the legitimate
+  # versions of those tasks, which is the price of not distinguishing data from
+  # instructions inside a tool result.
+  - name: untrusted-to-external
+    when: { session_has: [untrusted], tool_has: [external] }
+    then: ask
+
 limits:
   max_tool_calls: 50
   max_identical_calls: 5
