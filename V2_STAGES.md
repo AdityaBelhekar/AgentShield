@@ -2,7 +2,7 @@
 
 One stage per day, 19 stages, three releases. Design rationale and the findings referenced as C1–C12 are in [AGENTSHIELD_V2_REPORT.md](AGENTSHIELD_V2_REPORT.md).
 
-**Progress:** stages 0–11 done (2026-10-24). Next: stage 12.
+**Progress:** stages 0–12 done (2026-10-24). Next: stage 13.
 
 **Rules**
 
@@ -128,6 +128,7 @@ One stage per day, 19 stages, three releases. Design rationale and the findings 
 - **Build:** README and quickstart rewritten for the V2 API. Changelog. A short "what this does not protect against" section. Merge `v2` into `main`.
 - **Done when:** a clean virtualenv can `pip install` the built wheel and run the stage 5 demo.
 - **Needs you:** your go-ahead before the tag is pushed, since that publishes to PyPI.
+- **As built:** version is `0.2.0`; README and QUICKSTART are rewritten around the V2 API and the benchmark; CHANGELOG has the 0.2.0 entry. A fresh venv installed the built wheel (only `pydantic` + `pyyaml` pulled in), imported from `site-packages`, and ran `examples/exfil_demo.py` with the outbound email blocked. `v2` is merged into `main` locally. No tag or push yet: that needs your go-ahead.
 
 ---
 

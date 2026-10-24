@@ -22,7 +22,7 @@ Run it with::
     agentshield bench
     agentshield bench --user-tasks user_task_0 --injection-tasks injection_task_0
     agentshield bench --markdown
-    agentshield bench --model gpt-4o-2024-08-06
+    agentshield bench --model gpt-4o-2024-05-13
 """
 
 from __future__ import annotations

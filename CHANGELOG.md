@@ -33,11 +33,33 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ---
 
-## [Unreleased]
+## [0.2.0] — 2026-10-24
 
-### V2 (on the `v2` branch)
+0.2.0 is a ground-up rewrite. The detector stack, runtime wrapper and red-team CLI are gone;
+in their place is a deterministic reference monitor for tool calls, a policy manifest, an
+approval path and a tamper-evident audit log. Read the [README](README.md) for the guarantee
+and, more importantly, for [what it does not protect against](README.md#what-this-does-not-protect-against).
 
-#### Added
+### Added
+
+- **AgentDojo benchmark** (stages 10–11): `agentshield bench` runs AgentDojo's banking suite
+  (16 user tasks × 9 injection tasks) with every tool call through the engine. The default
+  scripted mode needs no model or API key and executes the ground-truth user and injection
+  calls — the worst case for the policy. `--model` runs a real AgentDojo pipeline and attack.
+  The report carries the suite version, AgentDojo version, commit, date and every call's
+  verdict; `--json`, `--markdown` and `--out` are available. Added the `[bench]` extra and a
+  CI job that runs the full suite. On the banking policy the shielded configuration reaches
+  0.0% attack success rate (from 100% unshielded), at 43.8% utility; the README table is
+  reproducible at commit `11688c7`.
+- **Untrusted-to-external flow** (stage 11): the first full benchmark left 14 of 144
+  injections alive because two tasks read an injected file and then sent money or changed
+  user info with no confidential data in the session. The banking policy now answers `ask`
+  for any external sink once the session has untrusted data, with a regression test. This is
+  a policy fix, not an engine change; the cost is two legitimate tasks that the label-level
+  model cannot tell apart from the attack.
+- **Rewritten README and quickstart** for the 0.2.0 API, including the benchmark table, the
+  policy reference, the approval and audit paths, and a "what this does not protect against"
+  section.
 - Signed audit log (stage 9): `AuditLog` writes one JSON object per decision to an append-only, thread-safe JSONL file. Each record's SHA-256 covers the previous record's hash and every one of its own fields; Ed25519 checkpoints sign the head every N records. Reopening the file resumes the same chain, and appending to a signed log requires the same key. Arguments, task text and reasons are redacted before hashing. Pass it with `Shield.from_policy(..., audit=AuditLog(path, key=...))`; `Shield.close()` writes the final checkpoint. In `[audit]` extra.
 - `agentshield audit verify <file>` (stage 9), shipped as a console script and as `python -m agentshield`, recomputes the chain and every checkpoint signature; `--json` prints the report. `agentshield audit keygen --out key.pem` creates an Ed25519 private key.
 - Result labelling and spotlighting (stage 8): a string result from a tool labelled `untrusted` is wrapped in `<<UNTRUSTED_DATA:nonce>>` delimiters with a warning that it is data, not instructions, before it reaches the model. The nonce is random per result, so content cannot forge the closing delimiter. Applies to `shield.tool(...)` and to the LangChain middleware's `ToolMessage`.
@@ -54,18 +76,18 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - `Shield(policy)` / `Shield.from_policy(source)`; `Shield()` defaults to `strict`.
 - Core types: `ToolCall`, `Decision`, `Verdict` (`allow` / `deny` / `ask`), `Label` (`untrusted` / `confidential` / `external`), `Session` (stage 2).
 
-#### Removed
+### Removed
 - The 0.1.x runtime: `shield()`, detectors, adapters, interceptors, canary, provenance, DNA, events, audit chain, policies, red-team CLI and certify. Replaced stage by stage per [V2_STAGES.md](V2_STAGES.md).
 - `backend/`, `agentshield-desktop/`, top-level `cli/`, Dockerfiles, `docker-compose.yml`, `Makefile`, `.env.example`.
 - Slack, PagerDuty, SIEM, Prometheus and OpenTelemetry exporters (OpenTelemetry returns in stage 15).
 - Generated API reference pages for removed modules.
 
-#### Changed
+### Changed
 - Core dependencies are now `pydantic` and `pyyaml` only.
-- Version is read from `agentshield/__init__.py`.
+- Version is read from `agentshield/__init__.py`; this release is `0.2.0`.
 - Tests live in `tests/` and run in CI on Python 3.11–3.13; lint and format use ruff.
 
-### 0.1.x (on `main`)
+## [0.1.x] — never released
 
 
 #### Changed
@@ -78,6 +100,3 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 #### Fixed
 - `publish.yml` was invalid YAML, so no release could run.
 - `mypy --strict` failures caused by redis-py 8 no longer declaring `Redis` as generic.
-
-#### Planned
-- V2 redesign, staged in [V2_STAGES.md](V2_STAGES.md). Findings that motivate it: [AGENTSHIELD_V2_REPORT.md](AGENTSHIELD_V2_REPORT.md).
