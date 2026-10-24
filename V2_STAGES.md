@@ -2,7 +2,7 @@
 
 One stage per day, 19 stages, three releases. Design rationale and the findings referenced as C1–C12 are in [AGENTSHIELD_V2_REPORT.md](AGENTSHIELD_V2_REPORT.md).
 
-**Progress:** stages 0–10 done (2026-10-24). Next: stage 11.
+**Progress:** stages 0–11 done (2026-10-24). Next: stage 12.
 
 **Rules**
 
@@ -121,6 +121,7 @@ One stage per day, 19 stages, three releases. Design rationale and the findings 
 - **Build:** Run the full suite from stage 10. Read every failure: missed attacks become policy or engine fixes with regression tests; blocked legitimate tasks become policy tuning. Add `agentshield bench` as the single entry point. Put the results table in the README with commit hash, model and date.
 - **Done when:** the README table is reproducible from `agentshield bench` at that commit.
 - **Fixes:** C10. This replaces the red-team suite and the certification badge.
+- **As built:** the first full run left 14 of 144 injections alive: every `send_money` injection after `user_task_0` or `user_task_13` read a file, because the session had untrusted data but no confidential data, so the lethal-trifecta flow did not match. Added an `untrusted-to-external` flow (ask) with a regression test; that is the only policy change. The second run: utility 43.75% (7/16), utility-under-attack 43.75%, attack success rate 0%, 296 calls blocked and 296 approvals. The cost is two legitimate tasks (`user_task_0`, `user_task_13`), which the policy cannot distinguish from the attack. Numbers are scripted worst-case, not a model; `--model` is the real-model path and needs an API key. README table measured at `11688c7`.
 
 ### Stage 12 — Release 0.2.0
 
