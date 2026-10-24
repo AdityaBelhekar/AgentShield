@@ -2,7 +2,7 @@
 
 One stage per day, 19 stages, three releases. Design rationale and the findings referenced as C1–C12 are in [AGENTSHIELD_V2_REPORT.md](AGENTSHIELD_V2_REPORT.md).
 
-**Progress:** stages 0–9 done (2026-10-23). Next: stage 10.
+**Progress:** stages 0–10 done (2026-10-24). Next: stage 11.
 
 **Rules**
 
@@ -114,6 +114,7 @@ One stage per day, 19 stages, three releases. Design rationale and the findings 
 - **Done when:** one command produces utility, utility-under-attack and attack-success-rate for both configurations on a small subset.
 - **Needs you:** an LLM API key and a spending limit. Benchmark runs make many model calls.
 - **Risk:** AgentDojo's pipeline API has to be learned on the day; may spill.
+- **As built:** `agentshield/bench.py` subclasses AgentDojo's `FunctionsRuntime` so every tool call goes through the engine, and the scripted mode drives the real suite, environment and task checkers without a model. `agentshield bench` defaults to scripted mode; `--model` uses an AgentDojo pipeline and attack. `agentshield/policies/agentdojo-banking.yaml` labels all 11 tools. Approval defaults to deny because there is no human in the loop. The full banking suite is in CI, not only in the tests.
 
 ### Stage 11 — Measure, fix, publish numbers
 

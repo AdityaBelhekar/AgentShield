@@ -43,6 +43,9 @@ langchain = [
 audit = [
   "cryptography>=42",
 ]
+bench = [
+  "agentdojo>=0.1.35,<0.2",
+]
 dev = [
   "pytest>=8.0",
   "ruff>=0.6",
@@ -78,6 +81,10 @@ select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "SIM"]
 python_version = "3.11"
 strict = true
 plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["agentdojo.*"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
