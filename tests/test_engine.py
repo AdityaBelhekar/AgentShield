@@ -161,12 +161,30 @@ def test_deny_list_is_evaluated_before_limits() -> None:
     assert decision.rule == "tools.bash.deny"
 
 
-def test_flows_are_evaluated_before_limits() -> None:
+def test_a_limit_beats_an_ask_flow() -> None:
+    # Without the taint this call is denied by the limit; taint must not turn it into ask.
     engine = make_engine(limits={"max_tool_calls": 2})
     session = Session()
     for call in (ToolCall("web_fetch", {}), ToolCall("read_file", {})):
         assert engine.check(call, session).allowed
         engine.record(call, session=session)
+    decision = engine.check(ToolCall("send_email", {}), session)
+    assert decision.rule == "limits.max_tool_calls"
+    assert decision.verdict is Verdict.DENY
+
+
+def test_a_deny_flow_beats_an_earlier_ask_flow() -> None:
+    deny_flow = {"name": "no-email", "when": {"tool": "send_email"}, "then": "deny"}
+    engine = make_engine(flows=[*MANIFEST["flows"], deny_flow])  # type: ignore[misc]
+    session = Session(taint={Label.UNTRUSTED, Label.CONFIDENTIAL})
+    decision = engine.check(ToolCall("send_email", {}), session)
+    assert decision.rule == "no-email"
+    assert decision.verdict is Verdict.DENY
+
+
+def test_flows_are_evaluated_before_limits() -> None:
+    engine = make_engine(limits={"max_tool_calls": 2})
+    session = Session(taint={Label.UNTRUSTED, Label.CONFIDENTIAL})
     decision = engine.check(ToolCall("send_email", {}), session)
     assert decision.rule == "trifecta"
     assert decision.verdict is Verdict.ASK

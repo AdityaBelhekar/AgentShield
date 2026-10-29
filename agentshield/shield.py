@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import inspect
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from functools import wraps
 from pathlib import Path
 from typing import Any, overload
 
 from agentshield.approvals import ApprovalHandler
 from agentshield.audit import AuditLog
+from agentshield.detectors import Detector
 from agentshield.engine import EnforcementEngine
 from agentshield.exceptions import (
     AgentShieldError,
@@ -40,10 +41,11 @@ class Shield:
         *,
         approval: ApprovalHandler | None = None,
         audit: AuditLog | str | Path | None = None,
+        detectors: Sequence[Detector] = (),
     ) -> None:
         self.policy = policy if policy is not None else load_policy("strict")
         self.audit = AuditLog(audit) if isinstance(audit, (str, Path)) else audit
-        self.engine = EnforcementEngine(self.policy, audit=self.audit)
+        self.engine = EnforcementEngine(self.policy, audit=self.audit, detectors=detectors)
         self.approval = approval
 
     @classmethod
@@ -53,9 +55,10 @@ class Shield:
         *,
         approval: ApprovalHandler | None = None,
         audit: AuditLog | str | Path | None = None,
+        detectors: Sequence[Detector] = (),
     ) -> Shield:
         """Build a shield from a built-in policy name, a YAML file, or a mapping."""
-        return cls(load_policy(source), approval=approval, audit=audit)
+        return cls(load_policy(source), approval=approval, audit=audit, detectors=detectors)
 
     def close(self) -> None:
         """Flush a final signed checkpoint and close the audit log, if one is open."""
@@ -132,7 +135,7 @@ class Shield:
                 except BaseException:
                     self.engine.record(call)
                     raise
-                self.engine.record(call)
+                self.engine.record(call, result)
                 return self._spotlight_result(call, result)
 
             return async_wrapper
@@ -145,7 +148,7 @@ class Shield:
             except BaseException:
                 self.engine.record(call)
                 raise
-            self.engine.record(call)
+            self.engine.record(call, result)
             return self._spotlight_result(call, result)
 
         return wrapper

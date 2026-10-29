@@ -5,7 +5,7 @@ from __future__ import annotations
 import subprocess
 import sys
 import time
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 
 import pytest
 
@@ -43,6 +43,13 @@ PROVIDER = TracerProvider()
 PROVIDER.add_span_processor(SimpleSpanProcessor(MEMORY))
 PROVIDER.add_span_processor(BatchSpanProcessor(SlowFailingExporter(), schedule_delay_millis=1))
 trace.set_tracer_provider(PROVIDER)
+
+
+@pytest.fixture(autouse=True, scope="module")
+def _stop_exporting_after_this_module() -> Iterator[None]:
+    # The global provider cannot be unset; shut it down so later tests don't feed it.
+    yield
+    PROVIDER.shutdown()
 
 
 def _shield() -> Shield:

@@ -25,8 +25,15 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - The outcome of every `ask` is now audited as a record with rule `approval`. An approval
   that cannot be written to the audit log is not granted.
 - `examples/exfil_demo.py --audit FILE`.
+- Detectors: `Shield(..., detectors=[...])`. A detector can only upgrade `allow` to
+  `ask` (arguments) or add `untrusted` taint (results); errors and timeouts count as a
+  flag. `ChunkedClassifier` wraps any batch text scorer with overlapping chunks.
 - `[otel]` extra: one `agentshield.decision` span event per decision, using the GenAI
   semantic conventions for tool spans. Telemetry errors never change a decision.
+
+### Fixed
+- An `ask` flow no longer pre-empts a `deny` flow listed after it or a limit. Before, extra
+  taint could turn a call the limit would deny into an `ask`.
 
 ---
 

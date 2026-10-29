@@ -2,7 +2,7 @@
 
 One stage per day, 19 stages, three releases. Design rationale and the findings referenced as C1–C12 are in [AGENTSHIELD_V2_REPORT.md](AGENTSHIELD_V2_REPORT.md).
 
-**Progress:** stages 0–16 done (2026-10-29). Next: stage 17.
+**Progress:** stages 0–16 done, stage 17 partly done (2026-10-29): detector interface and chunking are in; the model backend and its benchmark numbers wait on the model choice.
 
 **Rules**
 
@@ -165,6 +165,7 @@ One stage per day, 19 stages, three releases. Design rationale and the findings 
 - **Build:** A detector interface whose output can only add taint or upgrade `allow` to `ask`. One classifier implementation that chunks long inputs and runs without torch, behind a `[classifier]` extra, with a time limit.
 - **Done when:** a test proves a detector cannot turn a `deny` into an `allow`; an injection buried in a long document is flagged; classifier numbers on a public injection set and a benign set are added to `agentshield bench`.
 - **Needs you:** pick the model on the day; licence and download terms differ between candidates.
+- **As built (partial):** `agentshield/detectors.py` has the `Detector` protocol (`name`, `flags(text)`), `ChunkedClassifier` (overlapping chunks over any batch scorer) and a thread-pool time limit (default 2 s; timeout or error counts as a flag). The engine runs detectors only on a plain `allow` and only adds `untrusted` taint in `record`, so a randomized test over 600 call sequences sees no decision loosened; the buried-injection test uses a fake windowed scorer. That randomized test found a real engine bug: an `ask` flow was returned before a later `deny` flow or a limit, so more taint could turn a limit's `deny` into `ask`. Fixed in the engine: deny flows and limits now beat ask flows. **Not done:** the ONNX/no-torch model backend, the `[classifier]` extra, and classifier numbers in `agentshield bench`. All three need the model picked and its weights downloaded.
 
 ### Stage 18 — Docs site, threat model, release 0.3.0
 

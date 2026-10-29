@@ -4,14 +4,21 @@
 flow rules against the session's taint, then limits. ``record`` is called after a tool
 returns and is the only place that grows the session's taint.
 
+Optional detectors (``agentshield.detectors``) run after the policy, and only on a call it
+allows: a flag turns ``allow`` into ``ask``. On ``record`` a flagged result adds
+``untrusted`` taint. Neither path can loosen a decision.
+
 Fail-closed: if the engine cannot decide, the answer is ``deny``. In ``monitor`` mode the
 same evaluation runs and the decision is reported, but the returned verdict is ``allow``.
 """
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from agentshield.arguments import argument_violation, sensitive_argument_touched
 from agentshield.audit import AuditLog
+from agentshield.detectors import Detector, as_text, run_detectors
 from agentshield.exceptions import AgentShieldError
 from agentshield.policy import Flow, Policy
 from agentshield.session import Decision, Label, Session, ToolCall, Verdict, current_session
@@ -22,15 +29,37 @@ from agentshield.telemetry import emit_decision
 class EnforcementEngine:
     """Applies one immutable policy to tool calls for a session."""
 
-    def __init__(self, policy: Policy, *, audit: AuditLog | None = None) -> None:
+    def __init__(
+        self,
+        policy: Policy,
+        *,
+        audit: AuditLog | None = None,
+        detectors: Sequence[Detector] = (),
+        detector_timeout: float = 2.0,
+    ) -> None:
         self.policy = policy
         self.audit = audit
+        self.detectors = tuple(detectors)
+        self.detector_timeout = detector_timeout
 
     def check(self, call: ToolCall, session: Session | None = None) -> Decision:
         """Decide whether ``call`` may run. Never raises; an internal error is a deny."""
         active = session if session is not None else current_session()
         try:
             decision = self._decide(call, active)
+            # rule is None only for a plain allow, not a monitor-mode "would deny".
+            if decision.verdict is Verdict.ALLOW and decision.rule is None and self.detectors:
+                flagged = run_detectors(
+                    self.detectors, as_text(dict(call.args)), self.detector_timeout
+                )
+                if flagged is not None:
+                    decision = self._monitor(
+                        Decision(
+                            Verdict.ASK,
+                            f"detector {flagged} flagged the arguments of {call.name!r}",
+                            rule=f"detector.{flagged.split(' ')[0]}",
+                        )
+                    )
         except Exception as exc:  # noqa: BLE001 - enforcement must fail closed
             decision = Decision(
                 Verdict.DENY,
@@ -82,6 +111,12 @@ class EnforcementEngine:
             active.taint.update(rule.labels)
             if sensitive_argument_touched(call, rule):
                 active.taint.add(Label.CONFIDENTIAL)
+        if (
+            self.detectors
+            and Label.UNTRUSTED not in active.taint
+            and run_detectors(self.detectors, as_text(result), self.detector_timeout) is not None
+        ):
+            active.taint.add(Label.UNTRUSTED)
 
     def _decide(self, call: ToolCall, session: Session | None) -> Decision:
         if session is None:
@@ -129,15 +164,19 @@ class EnforcementEngine:
             )
 
         labels = rule.labels if rule is not None else frozenset()
+        # A deny flow or a limit beats an ask flow, whatever the order, so more taint can
+        # never turn a deny into an ask.
+        asked: Decision | None = None
         for flow in self.policy.flows:
             if _matches(flow, call, labels, session):
-                return self._monitor(
-                    Decision(
-                        flow.verdict,
-                        f"flow {flow.name!r} matched for tool {call.name!r}",
-                        rule=flow.name,
-                    )
+                decision = Decision(
+                    flow.verdict,
+                    f"flow {flow.name!r} matched for tool {call.name!r}",
+                    rule=flow.name,
                 )
+                if decision.verdict is Verdict.DENY:
+                    return self._monitor(decision)
+                asked = asked or decision
 
         limits = self.policy.limits
         if limits.max_tool_calls is not None and session.tool_calls >= limits.max_tool_calls:
@@ -161,6 +200,8 @@ class EnforcementEngine:
                 )
             )
 
+        if asked is not None:
+            return self._monitor(asked)
         return Decision(Verdict.ALLOW, f"tool {call.name!r} is allowed by the policy")
 
     def _monitor(self, decision: Decision) -> Decision:

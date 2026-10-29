@@ -85,9 +85,11 @@ Every tool call is evaluated in this order:
 3. **Flows.** Session taint × the tool's labels. `session_has` requires every listed
    label; `tool_has` requires every listed label; `tool` names one tool.
 4. **Limits.** A session can cap total calls and identical calls.
+5. **Detectors** (optional). Only on a call that would be allowed: a flag makes it `ask`.
 
 A flow ends in `deny` (raises `PolicyViolationError`) or `ask` (raises `ApprovalRequired`,
-or calls your approval handler). `monitor` mode records what it would have done and allows
+or calls your approval handler). A matching `deny` flow or a limit always wins over an
+`ask` flow, so more taint can only make a decision stricter. `monitor` mode records what it would have done and allows
 the call, so you can roll out a policy before enforcing it.
 
 <br />
@@ -260,6 +262,26 @@ agentshield ui demo.jsonl --policy policy.yaml   # writes demo.html; --policy ma
 
 The page is one self-contained HTML file with no script. An `ask` resolved by your approval
 handler is written to the log as a second record with rule `approval`.
+
+<br />
+
+## Detectors (optional)
+
+A detector is anything with a `name` and `flags(text) -> bool`. It can only tighten: a
+flagged argument turns an `allow` into `ask`, and a flagged result adds `untrusted` taint
+so your flows apply. It never sees the session and cannot touch a `deny`. A detector that
+raises or takes longer than 2 seconds counts as a flag.
+
+```python
+from agentshield.detectors import ChunkedClassifier
+
+detector = ChunkedClassifier(my_model_scores, threshold=0.5, chunk_chars=1500)
+shield = Shield.from_policy("policy.yaml", detectors=[detector])
+```
+
+`ChunkedClassifier` scores overlapping chunks, so an injection deep in a long document is
+not lost to the model's input window. No model ships yet: bring a scorer that takes a list
+of strings and returns a list of scores.
 
 <br />
 

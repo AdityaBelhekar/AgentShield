@@ -206,13 +206,11 @@ class Gateway:
         if call is None:
             return line
 
-        self.shield.engine.record(call, session=self.session)
-        rule = self.shield.policy.tools.get(call.name)
         result = message.get("result")
-        if rule is None or Label.UNTRUSTED not in rule.labels or not isinstance(result, dict):
-            return line
-        content = result.get("content")
-        if not isinstance(content, list):
+        content = result.get("content") if isinstance(result, dict) else None
+        self.shield.engine.record(call, content, session=self.session)
+        rule = self.shield.policy.tools.get(call.name)
+        if rule is None or Label.UNTRUSTED not in rule.labels or not isinstance(content, list):
             return line
         for block in content:
             if isinstance(block, dict) and block.get("type") == "text":
