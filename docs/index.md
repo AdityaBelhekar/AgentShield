@@ -1,34 +1,39 @@
 # AgentShield
 
-!!! warning "0.1.x is experimental — do not use it as a security boundary"
-	An audit of 0.1.0 found that several protections described on this site do not work as written: exfiltration chains are not blocked by the built-in policies, deny-listed tools can run, canary tokens are never injected, and goal-drift and DNA detection are inactive through `shield()`. See the [audit report](https://github.com/AdityaBelhekar/AgentShield/blob/main/AGENTSHIELD_V2_REPORT.md) and the [V2 plan](https://github.com/AdityaBelhekar/AgentShield/blob/main/V2_STAGES.md).
+**A policy-enforcing reference monitor for AI agent tool calls.** Version 0.3.0, alpha.
 
-AgentShield is an experimental security runtime SDK for AI agents. It is not an agent, and it is not a chatbot. It is a firewall layer that sits between your agent runtime and the outside world, inspecting execution events in real time and enforcing policy decisions before dangerous behavior propagates.
+!!! warning "Not a sandbox"
+    AgentShield decides whether one tool call may run, from labels you assign to your tools
+    and the taint of the current session. It cannot tell data from instructions inside a
+    tool result, and it does not isolate tool code. Read the
+    [threat model](threat-model.md) before relying on it.
 
-```python
-from agentshield import shield
+The guarantee is narrow and explicit: **once a session has read both untrusted and
+confidential data, a tool marked external needs approval.** Every checked call is evaluated
+before it runs, fail-closed, and recorded after. Undeclared tools are denied by default.
 
-protected = shield(your_langchain_agent, policy="no_exfiltration")
-protected.run("Summarize this document")
+```bash
+pip install agentshield-x
 ```
 
-| Threat Covered | Detection Method | Action |
-| --- | --- | --- |
-| Prompt Injection | Signature matching + semantic similarity + canary trigger checks | FLAG, ALERT, or BLOCK based on confidence and policy |
-| Goal Drift | Embedding distance from original task with rolling correlation | FLAG/ALERT and BLOCK when thresholds and policy allow |
-| Tool Chain Escalation | Forbidden sequence matching + heuristic escalation scoring | Pre-execution BLOCK for dangerous chains, else escalated actions |
-| Memory Poisoning | Pattern signatures + semantic z-score + content length anomaly | ALERT/BLOCK when anomaly confidence crosses thresholds |
-| Behavioral Anomalies | Agent DNA baseline deviation scoring across 13 behavioral features | FLAG/ALERT and correlation-driven escalation |
-| Inter-Agent Injection | Trust-graph analysis across sender/receiver trust boundaries | LOG/FLAG/ALERT based on sender state and confidence |
+The core install is `pydantic` and `pyyaml`. No model download, no network call on import.
 
-## Why AgentShield?
+## Where it sits
 
-- Framework-agnostic protection for LangChain, LlamaIndex, AutoGen, and raw provider clients.
-- Multi-detector correlation logic that reduces single-signal false positives.
-- Cryptographic audit chain for tamper-evident post-incident forensics.
-- Policy-driven controls that let teams start in monitor mode and progressively harden.
+| Entry point | Use it for |
+|---|---|
+| [`shield.tool(...)`](getting-started/quickstart.md) | Plain Python sync and async tool functions |
+| [`shield.langchain()`](guide/langchain.md) | LangChain / LangGraph agents |
+| [`agentshield gateway`](guide/mcp-gateway.md) | Any MCP client talking to a stdio MCP server |
 
-## Quick Links
+Around the engine: an [audit log](guide/audit-log.md) with a flow-graph viewer,
+[OpenTelemetry events](guide/opentelemetry.md), optional
+[detectors](guide/detectors.md), and a reproducible [benchmark](benchmark.md).
 
-- [Installation](getting-started/installation.md)
-- [Quickstart](getting-started/quickstart.md)
+## Start here
+
+1. [Install](getting-started/installation.md) and pick your extras.
+2. Run the [quickstart](getting-started/quickstart.md): a scripted agent tries to email a
+   secret and is stopped before the call runs.
+3. Read [how it decides](getting-started/how-it-works.md), then write your
+   [policy](guide/policies.md).

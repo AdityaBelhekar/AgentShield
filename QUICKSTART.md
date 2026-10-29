@@ -1,7 +1,7 @@
 # AgentShield Quickstart
 
 Five minutes to put the reference monitor around a tool-calling agent. This guide is for
-**0.2.0**; the 0.1.x API was removed.
+**0.3.0**; the 0.1.x API was removed in 0.2.0.
 
 AgentShield is not a sandbox. It answers one question — may this tool call run? — from the
 labels in your policy and the taint of the current session. Read the
@@ -10,7 +10,7 @@ labels in your policy and the taint of the current session. Read the
 ## 1. Install
 
 ```bash
-pip install agentshield-x==0.2.0
+pip install agentshield-x==0.3.0
 ```
 
 Python 3.11+. The core install is `pydantic` and `pyyaml` only.
@@ -202,5 +202,7 @@ results, and what they do not prove, are in the [README](README.md#benchmark-age
 ## Next
 
 - [README](README.md) — the model, the benchmark and the limitations.
-- [CHANGELOG](CHANGELOG.md) — what changed in 0.2.0.
+- [CHANGELOG](CHANGELOG.md) — what changed in each release.
+- [Docs site](https://AdityaBelhekar.github.io/AgentShield) — the MCP gateway, audit viewer,
+  detectors, OpenTelemetry and the threat model.
 - [V2 stages](V2_STAGES.md) — what is planned next.

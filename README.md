@@ -6,21 +6,21 @@
 
 # AgentShield
 
-**A policy-enforcing reference monitor for AI agent tool calls. 0.2.0 is an alpha.**
+**A policy-enforcing reference monitor for AI agent tool calls. 0.3.0 is an alpha.**
 
 > [!WARNING]
 > AgentShield is not a sandbox and not a complete defense against prompt injection. It
 > decides whether one tool call may run, from labels you assign to your tools and the
 > taint of the current session. It cannot tell data from instructions inside a tool result.
-> Read [what this does not protect against](#what-this-does-not-protect-against) before
-> relying on it.
+> Read [what this does not protect against](#what-this-does-not-protect-against) and the
+> [threat model](docs/threat-model.md) before relying on it.
 
 The guarantee is narrow and explicit: **once a session has read both untrusted and
 confidential data, a tool marked external needs approval.** Every wrapped call is checked
 before it runs, fail-closed, and recorded after. Unlabelled tools are denied by default.
 
 ```bash
-pip install agentshield-x==0.2.0
+pip install agentshield-x==0.3.0
 ```
 
 The core install is `pydantic` and `pyyaml` only. There is no Redis, no model download and
@@ -207,7 +207,8 @@ checked; everything else passes through byte for byte.
 agentshield gateway --policy policy.yaml --audit audit.jsonl -- python my_server.py
 ```
 
-In the client's server config, use that whole line as the command. A denied call comes
+In the client's server config, use that whole line as the command.
+`python examples/mcp_gateway_demo.py` shows it end to end with no extras. A denied call comes
 back as a tool error the model can read, and the server never sees it. There is no human
 on a stdio pipe, so `ask` is answered as a denial. Results from `untrusted` tools are
 delimited like `shield.tool` results. One gateway process is one session.
@@ -394,7 +395,8 @@ key. Those numbers will not match the scripted ones and should be reported separ
 - Python 3.11, 3.12 and 3.13.
 - Core dependencies: `pydantic` and `pyyaml`.
 - Extras: `[langchain]` for the middleware, `[audit]` for Ed25519 checkpoints, `[otel]` for
-  OpenTelemetry events, `[bench]` for AgentDojo. The MCP gateway needs no extra.
+  OpenTelemetry events, `[classifier]` for the prompt-injection classifier, `[bench]` for
+  AgentDojo. The MCP gateway, flow-graph viewer and audit verification need no extra.
 - The 0.1.x API (`shield()`, detectors, adapters, red-team CLI) was removed in 0.2.0. See
   [CHANGELOG.md](CHANGELOG.md) and [AGENTSHIELD_V2_REPORT.md](AGENTSHIELD_V2_REPORT.md).
 
@@ -402,11 +404,12 @@ key. Those numbers will not match the scripted ones and should be reported separ
 
 ## Docs
 
+[Docs site](https://AdityaBelhekar.github.io/AgentShield) · [Threat model](docs/threat-model.md) ·
 [Quickstart](./QUICKSTART.md) · [Changelog](./CHANGELOG.md) · [V2 stages](./V2_STAGES.md) ·
 [0.1.0 audit and V2 rationale](./AGENTSHIELD_V2_REPORT.md) · [Contributing](./CONTRIBUTING.md)
 
-The MkDocs site still describes 0.1.x and is being rewritten for V2 (stage 18). For 0.2.0,
-this README and [QUICKSTART.md](QUICKSTART.md) are the reference.
+The full documentation, including the [threat model](docs/threat-model.md) with OWASP
+agentic coverage, is at https://AdityaBelhekar.github.io/AgentShield (source in `docs/`).
 
 <br />
 

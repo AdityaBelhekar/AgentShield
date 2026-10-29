@@ -47,3 +47,18 @@ def test_import_is_fast_and_pulls_nothing_heavy() -> None:
     ).stdout.splitlines()
     assert float(out[0]) < 0.5
     assert out[1] == ""
+
+
+def test_both_demos_block_the_outbound_call() -> None:
+    for demo, expected in (
+        ("exfil_demo.py", "The outbound call never reached the tool."),
+        ("mcp_gateway_demo.py", "send_email never reached the server."),
+    ):
+        out = subprocess.run(
+            [sys.executable, str(ROOT / "examples" / demo)],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=60,
+        ).stdout
+        assert expected in out

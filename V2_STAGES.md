@@ -2,7 +2,7 @@
 
 One stage per day, 19 stages, three releases. Design rationale and the findings referenced as C1–C12 are in [AGENTSHIELD_V2_REPORT.md](AGENTSHIELD_V2_REPORT.md).
 
-**Progress:** stages 0–17 done (2026-10-30). Next: stage 18.
+**Progress:** stages 0–18 done (2026-10-30). The plan is complete; 0.3.0 is ready to tag.
 
 **Rules**
 
@@ -172,6 +172,7 @@ One stage per day, 19 stages, three releases. Design rationale and the findings 
 - **Build:** Docs site rewritten for V2. A threat model page stating what is and isn't in scope, with coverage mapped to the OWASP agentic list. `SECURITY.md` updated.
 - **Done when:** the docs build has no page describing a removed feature, and the wheel installs and runs both demos from a clean virtualenv.
 - **Needs you:** go-ahead before the tag is pushed.
+- **As built:** every 0.1.x docs page is removed; the site is rebuilt around V2 (getting started, policies, LangChain, MCP gateway, audit log and flow graph, detectors, OpenTelemetry, benchmark, CLI and API reference) and `mkdocs build --strict` passes. `docs/threat-model.md` states the asset, attacker, trust assumptions, in- and out-of-scope threats, and coverage against the OWASP Top 10 for Agentic Applications (2026): primary for ASI02 (tool misuse), partial for eight, none for ASI07 (inter-agent communication). `SECURITY.md` says what counts as a vulnerability. A second demo, `examples/mcp_gateway_demo.py`, runs the gateway with a stdlib-only server. The 0.3.0 wheel installed into a clean venv (only `pydantic` + `pyyaml` pulled in, tested on Python 3.14) and both demos blocked the outbound call. Not done: no tag pushed, `v2` not merged into `main`.
 
 ---
 

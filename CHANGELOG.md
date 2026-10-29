@@ -6,7 +6,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ---
 
-## [Unreleased]
+## [0.3.0] — 2026-10-30
 
 ### Added
 - `agentshield gateway --policy p.yaml -- <server command>`: a stdio MCP proxy that checks
@@ -35,36 +35,14 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - `[otel]` extra: one `agentshield.decision` span event per decision, using the GenAI
   semantic conventions for tool spans. Telemetry errors never change a decision.
 
+### Changed
+- Documentation site rewritten for V2; every 0.1.x page removed. New threat model page
+  with coverage mapped to the OWASP Top 10 for Agentic Applications (2026).
+- `SECURITY.md` states what counts as a vulnerability and the supported versions.
+
 ### Fixed
 - An `ask` flow no longer pre-empts a `deny` flow listed after it or a limit. Before, extra
   taint could turn a call the limit would deny into an `ask`.
-
----
-
-## [0.1.0] — 2026-04-05
-
-### Added
-- `shield()` entry point — wrap any LangChain agent in one line
-- **Prompt Injection Detector** — 3-layer detection (pattern + semantic + canary)
-- **Goal Drift Detector** — cosine distance with rolling average baseline
-- **Tool Chain Escalation Detector** — forbidden sequence detection
-- **Memory Poison Detector** — z-score anomaly detection
-- **Agent DNA Fingerprinting** — 13-feature behavioral baseline per agent
-- **Canary Injection System** — honeypot tokens with immediate blocking
-- **Prompt Provenance Tracking** — taint analysis for all content origins
-- **Cryptographic Audit Trail** — SHA-256 hash-chained tamper-proof JSONL log
-- **Cross-detector correlation engine** — escalation logic across 6 detectors
-- **PolicyEvaluator** — YAML-configurable policy with 5 actions (BLOCK/ALERT/FLAG/LOG/ALLOW)
-- Built-in policies: `no_exfiltration`, `strict`, `monitor_only`
-- **Inter-Agent Trust Graph** — monitors cross-agent message injection
-- **FastAPI backend** — REST + WebSocket event stream
-- **React dashboard** — live agent graph, alert panel, forensic trace (Cytoscape.js)
-- **Red Team CLI** — `agentshield attack` + `agentshield certify`
-- **Adapters** — LangChain, LlamaIndex, AutoGen, raw OpenAI/Anthropic API
-- **Observability** — OpenTelemetry export, Slack + PagerDuty webhooks, Grafana dashboard, SIEM export
-- Full MkDocs documentation site at https://AdityaBelhekar.github.io/AgentShield
-- GitHub Actions CI (lint, typecheck, build-check on every push)
-- GitHub Actions publish workflow (PyPI release on version tag)
 
 ---
 
@@ -135,3 +113,30 @@ and, more importantly, for [what it does not protect against](README.md#what-thi
 #### Fixed
 - `publish.yml` was invalid YAML, so no release could run.
 - `mypy --strict` failures caused by redis-py 8 no longer declaring `Redis` as generic.
+
+---
+
+## [0.1.0] — 2026-04-05
+
+### Added
+- `shield()` entry point — wrap any LangChain agent in one line
+- **Prompt Injection Detector** — 3-layer detection (pattern + semantic + canary)
+- **Goal Drift Detector** — cosine distance with rolling average baseline
+- **Tool Chain Escalation Detector** — forbidden sequence detection
+- **Memory Poison Detector** — z-score anomaly detection
+- **Agent DNA Fingerprinting** — 13-feature behavioral baseline per agent
+- **Canary Injection System** — honeypot tokens with immediate blocking
+- **Prompt Provenance Tracking** — taint analysis for all content origins
+- **Cryptographic Audit Trail** — SHA-256 hash-chained tamper-proof JSONL log
+- **Cross-detector correlation engine** — escalation logic across 6 detectors
+- **PolicyEvaluator** — YAML-configurable policy with 5 actions (BLOCK/ALERT/FLAG/LOG/ALLOW)
+- Built-in policies: `no_exfiltration`, `strict`, `monitor_only`
+- **Inter-Agent Trust Graph** — monitors cross-agent message injection
+- **FastAPI backend** — REST + WebSocket event stream
+- **React dashboard** — live agent graph, alert panel, forensic trace (Cytoscape.js)
+- **Red Team CLI** — `agentshield attack` + `agentshield certify`
+- **Adapters** — LangChain, LlamaIndex, AutoGen, raw OpenAI/Anthropic API
+- **Observability** — OpenTelemetry export, Slack + PagerDuty webhooks, Grafana dashboard, SIEM export
+- Full MkDocs documentation site at https://AdityaBelhekar.github.io/AgentShield
+- GitHub Actions CI (lint, typecheck, build-check on every push)
+- GitHub Actions publish workflow (PyPI release on version tag)
