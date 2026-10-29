@@ -17,19 +17,33 @@ with unique keys, or a batch that contains a ``tools/call``, gets an error inste
 forwarded, so the server cannot be handed something the engine did not check.
 
 One gateway process serves one client connection, so it holds one session.
+
+Hardening:
+
+- ``mcp.allowed_servers`` in the policy lists the exact server commands the gateway may
+  start (the command words joined by single spaces). Anything else is refused.
+- With a lockfile (``--lock``), the hash of every tool's name, title, description, input
+  schema and annotations is written the first time the tool is listed. If a later listing
+  shows a different hash, calls to that tool are denied: a description is part of the
+  prompt, and a server that rewrites one after review is changing what the model is told.
+  Delete the tool's entry from the lockfile to accept the new version.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
+import os
 import subprocess
 import sys
 import threading
 from collections.abc import Sequence
 from contextlib import suppress
+from pathlib import Path
 from typing import IO, Any
 
-from agentshield.session import Label, Session, ToolCall, Verdict
+from agentshield.exceptions import PolicyViolationError
+from agentshield.session import Decision, Label, Session, ToolCall, Verdict
 from agentshield.shield import Shield
 from agentshield.spotlight import delimit
 
@@ -40,13 +54,26 @@ PARSE_ERROR = -32700
 class Gateway:
     """Proxies one MCP client connection to one downstream server process."""
 
-    def __init__(self, shield: Shield, command: Sequence[str]) -> None:
+    def __init__(
+        self, shield: Shield, command: Sequence[str], *, lock: str | Path | None = None
+    ) -> None:
         if not command:
             raise ValueError("gateway needs a downstream server command")
         self.shield = shield
         self.command = list(command)
+        self.server_key = " ".join(self.command)
+        allowed = shield.policy.mcp.allowed_servers
+        if allowed is not None and self.server_key not in allowed:
+            raise PolicyViolationError(
+                f"server command {self.server_key!r} is not in the policy's mcp.allowed_servers"
+            )
         self.session = Session(task="mcp-gateway")
+        self.lock_path = Path(lock) if lock is not None else None
+        if self.lock_path is not None:
+            read_lock(self.lock_path)  # fail at start, not mid-session, on a bad lockfile
+        self.changed_tools: set[str] = set()
         self._pending: dict[Any, ToolCall] = {}
+        self._listing: set[Any] = set()
         self._lock = threading.Lock()
         self._write_lock = threading.Lock()
 
@@ -102,6 +129,11 @@ class Gateway:
             return line, None
 
         if not _is_tool_call(message):
+            if isinstance(message, dict) and message.get("method") == "tools/list":
+                list_id = message.get("id")
+                if isinstance(list_id, str | int) and not isinstance(list_id, bool):
+                    with self._lock:
+                        self._listing.add(list_id)
             return line, None
 
         params = message.get("params")
@@ -117,7 +149,18 @@ class Gateway:
             return None, _error(None, INVALID_REQUEST, "malformed tools/call request")
 
         call = ToolCall(name, dict(arguments or {}))
-        decision = self.shield.engine.check(call, self.session)
+        if name in self.changed_tools:
+            decision = Decision(
+                Verdict.DENY,
+                f"tool {name!r} changed its description since it was locked",
+                rule="mcp.tool_changed",
+            )
+            if self.shield.audit is not None:
+                self.shield.audit.write(
+                    call, decision, self.session, policy=self.shield.policy.digest
+                )
+        else:
+            decision = self.shield.engine.check(call, self.session)
         if decision.verdict is not Verdict.ALLOW:
             if "id" not in message:
                 return None, None  # a notification gets no reply
@@ -151,6 +194,11 @@ class Gateway:
             return line
         with self._lock:
             call = self._pending.pop(message["id"], None)
+            listing = message["id"] in self._listing
+            self._listing.discard(message["id"])
+        if listing:
+            self._check_tools(message.get("result"))
+            return line
         if call is None:
             return line
 
@@ -167,6 +215,19 @@ class Gateway:
                 block["text"] = delimit(str(block.get("text", "")), source=call.name)
         return _encode(message)
 
+    def _check_tools(self, result: object) -> None:
+        if self.lock_path is None or not isinstance(result, dict):
+            return
+        tools = [t for t in result.get("tools") or [] if isinstance(t, dict) and "name" in t]
+        with self._lock:
+            lock = read_lock(self.lock_path)
+            pinned = lock["servers"].setdefault(self.server_key, {})
+            for tool in tools:
+                name, digest = str(tool["name"]), tool_digest(tool)
+                if pinned.setdefault(name, digest) != digest:
+                    self.changed_tools.add(name)
+            write_lock(self.lock_path, lock)
+
     def _write(self, stdout: IO[bytes], data: bytes) -> None:
         with self._write_lock:
             stdout.write(data)
@@ -176,9 +237,110 @@ class Gateway:
 _BATCH_REFUSED = "AgentShield gateway: batches containing tools/call are not supported"
 
 
-def run_gateway(shield: Shield, command: Sequence[str]) -> int:
+def run_gateway(shield: Shield, command: Sequence[str], *, lock: str | Path | None = None) -> int:
     """Run a gateway on this process's stdin/stdout."""
-    return Gateway(shield, command).run(sys.stdin.buffer, sys.stdout.buffer)
+    return Gateway(shield, command, lock=lock).run(sys.stdin.buffer, sys.stdout.buffer)
+
+
+_PINNED_FIELDS = ("name", "title", "description", "inputSchema", "annotations")
+
+
+def tool_digest(tool: dict[str, Any]) -> str:
+    """SHA-256 over the parts of a tool definition the model reads or relies on."""
+    pinned = {key: tool.get(key) for key in _PINNED_FIELDS}
+    return hashlib.sha256(json.dumps(pinned, sort_keys=True).encode()).hexdigest()
+
+
+def read_lock(path: Path) -> dict[str, Any]:
+    """Load a lockfile, or return an empty one if it does not exist yet."""
+    if not path.exists():
+        return {"version": 1, "servers": {}}
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict) or data.get("version") != 1:
+        raise ValueError(f"{path} is not an AgentShield MCP lockfile")
+    data.setdefault("servers", {})
+    return data
+
+
+def list_server_tools(command: Sequence[str]) -> list[dict[str, Any]]:
+    """Start ``command``, do the initialize handshake, and return every listed tool."""
+    # ponytail: blocking reads with no timeout; a server that never answers hangs this.
+    server = subprocess.Popen(list(command), stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+    assert server.stdin is not None and server.stdout is not None
+    send, out = server.stdin, server.stdout
+
+    def request(request_id: int, method: str, params: dict[str, Any]) -> dict[str, Any]:
+        send.write(
+            _encode({"jsonrpc": "2.0", "id": request_id, "method": method, "params": params})
+        )
+        send.flush()
+        for line in out:
+            message = json.loads(line)
+            if isinstance(message, dict) and message.get("id") == request_id:
+                if "error" in message:
+                    raise ValueError(f"{method} failed: {message['error']}")
+                result: dict[str, Any] = message["result"]
+                return result
+        raise ValueError(f"server closed before answering {method}")
+
+    try:
+        request(
+            0,
+            "initialize",
+            {
+                "protocolVersion": "2025-06-18",
+                "capabilities": {},
+                "clientInfo": {"name": "agentshield-draft", "version": "0"},
+            },
+        )
+        send.write(_encode({"jsonrpc": "2.0", "method": "notifications/initialized"}))
+        tools: list[dict[str, Any]] = []
+        params: dict[str, Any] = {}
+        for request_id in range(1, 1000):
+            page = request(request_id, "tools/list", params)
+            tools.extend(t for t in page.get("tools", []) if isinstance(t, dict))
+            if not page.get("nextCursor"):
+                break
+            params = {"cursor": page["nextCursor"]}
+        return tools
+    finally:
+        with suppress(OSError):
+            send.close()
+        server.terminate()
+        server.wait()
+
+
+def draft_policy(tools: Sequence[dict[str, Any]], server_key: str) -> str:
+    """A starting policy for a server: every tool at its most restrictive labels.
+
+    The server's descriptions and annotations are shown as comments, not trusted: a
+    server can claim ``readOnlyHint`` for a tool that sends email. Relax each label only
+    after reading what the tool really does.
+    """
+    lines = [
+        "# Draft AgentShield policy. Review every tool before using it.",
+        "# Descriptions and annotations below come from the server and are unverified.",
+        "version: 2",
+        "extends: strict",
+        "mcp:",
+        f"  allowed_servers: [{json.dumps(server_key)}]",
+        "tools:",
+    ]
+    for tool in sorted(tools, key=lambda t: str(t.get("name"))):
+        description = " ".join(str(tool.get("description") or "").split())[:200]
+        hints = tool.get("annotations") or {}
+        lines.append(f"  # {description}" if description else "  # (no description)")
+        if isinstance(hints, dict) and hints:
+            shown = ", ".join(f"{key}={value}" for key, value in sorted(hints.items()))
+            lines.append(f"  # server hints: {' '.join(shown.split())[:200]}")
+        lines.append(f"  {json.dumps(str(tool.get('name')))}: {{labels: [untrusted, external]}}")
+    return "\n".join(lines) + "\n"
+
+
+def write_lock(path: Path, lock: dict[str, Any]) -> None:
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(json.dumps(lock, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    os.replace(tmp, path)
 
 
 def _is_tool_call(message: object) -> bool:

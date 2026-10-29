@@ -10,8 +10,9 @@ from typing import Any
 
 import pytest
 
-from agentshield import Shield
-from agentshield.gateway import Gateway
+from agentshield import PolicyViolationError, Shield
+from agentshield.gateway import Gateway, draft_policy, list_server_tools
+from agentshield.policy import load_policy
 
 pytest.importorskip("mcp")
 
@@ -30,11 +31,13 @@ tools:
 """
 
 
-def _gateway_params(tmp_path: Path) -> tuple[StdioServerParameters, Path]:
+def _gateway_params(
+    tmp_path: Path, *extra: str, variant: str = ""
+) -> tuple[StdioServerParameters, Path]:
     policy = tmp_path / "policy.yaml"
     policy.write_text(POLICY, encoding="utf-8")
     log = tmp_path / "ran.log"
-    log.touch()
+    log.touch(exist_ok=True)
     params = StdioServerParameters(
         command=sys.executable,
         args=[
@@ -43,11 +46,12 @@ def _gateway_params(tmp_path: Path) -> tuple[StdioServerParameters, Path]:
             "gateway",
             "--policy",
             str(policy),
+            *extra,
             "--",
             sys.executable,
             str(FIXTURE),
         ],
-        env={"FIXTURE_LOG": str(log)},
+        env={"FIXTURE_LOG": str(log), "FIXTURE_VARIANT": variant},
     )
     return params, log
 
@@ -117,3 +121,48 @@ def test_unlabelled_tool_is_denied_under_strict() -> None:
     forward, reply = _gateway().from_client(line)
     assert forward is None
     assert reply is not None and json.loads(reply)["result"]["isError"] is True
+
+
+def test_a_changed_tool_description_is_caught(tmp_path: Path) -> None:
+    lock = tmp_path / "mcp.lock.json"
+
+    async def run(variant: str) -> tuple[Any, Any]:
+        params, _ = _gateway_params(tmp_path, "--lock", str(lock), variant=variant)
+        async with Client(params, read_timeout_seconds=30, mode="legacy") as client:
+            await client.list_tools()
+            send = await client.call_tool("send_email", {"to": "a@b.test", "body": "hi"})
+            read = await client.call_tool("read_file", {"path": "notes.txt"})
+            return send, read
+
+    first_send, _ = asyncio.run(run(""))
+    pinned = json.loads(lock.read_text(encoding="utf-8"))["servers"]
+    assert not first_send.is_error
+    assert sorted(next(iter(pinned.values()))) == ["bash", "fetch", "read_file", "send_email"]
+
+    second_send, second_read = asyncio.run(run("rugpull"))
+    assert second_send.is_error and "changed its description" in _text(second_send)
+    assert not second_read.is_error  # unchanged tools keep working
+    ran = (tmp_path / "ran.log").read_text(encoding="utf-8").split()
+    assert ran.count("send_email") == 1
+
+
+def test_a_server_outside_the_allow_list_is_refused() -> None:
+    shield = Shield.from_policy(
+        {"version": 2, "mcp": {"allowed_servers": ["python approved_server.py"]}}
+    )
+    Gateway(shield, ["python", "approved_server.py"])
+    with pytest.raises(PolicyViolationError, match="allowed_servers"):
+        Gateway(shield, ["python", "other_server.py"])
+
+
+def test_draft_policy_is_valid_and_maximally_restrictive(tmp_path: Path) -> None:
+    command = [sys.executable, str(FIXTURE)]
+    draft = draft_policy(list_server_tools(command), " ".join(command))
+    path = tmp_path / "draft.yaml"
+    path.write_text(draft, encoding="utf-8")
+
+    policy = load_policy(path)
+    assert sorted(policy.tools) == ["bash", "fetch", "read_file", "send_email"]
+    assert all(rule.labels == {"untrusted", "external"} for rule in policy.tools.values())
+    assert policy.mcp.allowed_servers == (" ".join(command),)
+    assert "# Send an email." in draft

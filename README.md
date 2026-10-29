@@ -210,6 +210,19 @@ back as a tool error the model can read, and the server never sees it. There is 
 on a stdio pipe, so `ask` is answered as a denial. Results from `untrusted` tools are
 delimited like `shield.tool` results. One gateway process is one session.
 
+Hardening for servers you did not write:
+
+```bash
+# A starting policy: every tool at [untrusted, external], server hints as comments.
+agentshield draft-policy -- python my_server.py > policy.yaml
+
+# Pin tool descriptions. A tool whose description changes later is denied.
+agentshield gateway --policy policy.yaml --lock mcp.lock.json -- python my_server.py
+```
+
+`mcp.allowed_servers` in the policy limits which server commands the gateway will start.
+To accept a changed tool after reviewing it, delete its entry from the lockfile.
+
 <br />
 
 ## Audit log

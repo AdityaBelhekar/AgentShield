@@ -25,6 +25,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _bench(args)
     if args.command == "gateway":
         return _gateway(args)
+    if args.command == "draft-policy":
+        return _draft_policy(args)
 
     parser.error("unknown command")
     return 2
@@ -33,7 +35,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="agentshield",
-        description="Verify AgentShield audit logs, create signing keys, run benchmarks.",
+        description="Verify audit logs, run benchmarks, and proxy MCP servers.",
     )
     commands = parser.add_subparsers(dest="command", required=True)
 
@@ -84,12 +86,20 @@ def _parser() -> argparse.ArgumentParser:
     gateway = commands.add_parser(
         "gateway",
         help="proxy a stdio MCP server, checking every tools/call",
-        usage="agentshield gateway --policy POLICY [--audit FILE] -- <server command>",
+        usage="agentshield gateway --policy POLICY [--lock FILE] [--audit FILE] -- <command>",
     )
     gateway.add_argument("--policy", required=True, help="built-in policy name or YAML file")
     gateway.add_argument("--audit", type=Path, help="append decisions to this JSONL file")
     gateway.add_argument("--audit-key", type=Path, help="Ed25519 PEM key to sign the audit log")
+    gateway.add_argument("--lock", type=Path, help="pin tool descriptions in this lockfile")
     gateway.add_argument("server", nargs=argparse.REMAINDER, help="the MCP server command")
+
+    draft = commands.add_parser(
+        "draft-policy",
+        help="print a starting policy for an MCP server's tools",
+        usage="agentshield draft-policy -- <server command>",
+    )
+    draft.add_argument("server", nargs=argparse.REMAINDER, help="the MCP server command")
     return parser
 
 
@@ -133,7 +143,7 @@ def _gateway(args: argparse.Namespace) -> int:
     from agentshield.gateway import run_gateway
     from agentshield.shield import Shield
 
-    command = args.server[1:] if args.server[:1] == ["--"] else args.server
+    command = _server_command(args.server)
     if not command:
         print("agentshield gateway: give the server command after --", file=sys.stderr)
         return 2
@@ -147,12 +157,35 @@ def _gateway(args: argparse.Namespace) -> int:
         print(f"agentshield gateway: {exc}", file=sys.stderr)
         return 2
     try:
-        return run_gateway(shield, command)
+        return run_gateway(shield, command, lock=args.lock)
+    except (AgentShieldError, ValueError) as exc:
+        print(f"agentshield gateway: {exc}", file=sys.stderr)
+        return 2
     except OSError as exc:
         print(f"agentshield gateway: cannot start {command[0]!r}: {exc}", file=sys.stderr)
         return 2
     finally:
         shield.close()
+
+
+def _draft_policy(args: argparse.Namespace) -> int:
+    from agentshield.gateway import draft_policy, list_server_tools
+
+    command = _server_command(args.server)
+    if not command:
+        print("agentshield draft-policy: give the server command after --", file=sys.stderr)
+        return 2
+    try:
+        tools = list_server_tools(command)
+    except (OSError, ValueError) as exc:
+        print(f"agentshield draft-policy: {exc}", file=sys.stderr)
+        return 2
+    print(draft_policy(tools, " ".join(command)), end="")
+    return 0
+
+
+def _server_command(words: list[str]) -> list[str]:
+    return words[1:] if words[:1] == ["--"] else words
 
 
 def _bench(args: argparse.Namespace) -> int:

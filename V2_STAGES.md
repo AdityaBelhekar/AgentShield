@@ -2,7 +2,7 @@
 
 One stage per day, 19 stages, three releases. Design rationale and the findings referenced as C1–C12 are in [AGENTSHIELD_V2_REPORT.md](AGENTSHIELD_V2_REPORT.md).
 
-**Progress:** stages 0–13 done (2026-10-29). Next: stage 14.
+**Progress:** stages 0–14 done (2026-10-29). Next: stage 15.
 
 **Rules**
 
@@ -145,6 +145,7 @@ One stage per day, 19 stages, three releases. Design rationale and the findings 
 
 - **Build:** A lockfile of tool-description hashes written on first sight; a changed description becomes `ask` or `deny`. A server allow-list. Draft manifest generation from a server's tool list, with its annotations as untrusted hints.
 - **Done when:** a fixture server that changes a tool description between runs is caught.
+- **As built:** `--lock FILE` keys pins by server command and hashes `name`, `title`, `description`, `inputSchema` and `annotations`. A changed tool is denied (there is no human on stdio, so `ask` would be a denial anyway); unchanged tools keep working; new tools are pinned on first sight and still go through `unlabelled_tools`. The check runs on the `tools/list` responses that pass through the gateway, so a client that calls a tool without listing it in that process is not covered. `mcp.allowed_servers` is an exact match on the command words joined by spaces. `agentshield draft-policy` labels every tool `[untrusted, external]` and puts descriptions and annotations in comments only, since a server can claim `readOnlyHint` for anything.
 
 ### Stage 15 — OpenTelemetry spans
 

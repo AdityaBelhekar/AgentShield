@@ -24,6 +24,8 @@ rejected instead of silently overwritten.
         when: {session_has: [untrusted], tool: bash}
         then: deny
     limits: {max_tool_calls: 50}
+    mcp:                            # optional: used only by `agentshield gateway`
+      allowed_servers: ["python my_server.py"]
 """
 
 from __future__ import annotations
@@ -144,6 +146,12 @@ class Limits(_Model):
     max_identical_calls: PositiveInt | None = None
 
 
+class McpRules(_Model):
+    """Gateway-only settings. ``allowed_servers``: the exact commands it may start."""
+
+    allowed_servers: tuple[str, ...] | None = None
+
+
 class Policy(_Model):
     """A validated, immutable policy."""
 
@@ -154,6 +162,7 @@ class Policy(_Model):
     tools: dict[str, ToolRule] = {}
     flows: tuple[Flow, ...] = ()
     limits: Limits = Limits()
+    mcp: McpRules = McpRules()
 
     @model_validator(mode="after")
     def _flows_are_consistent(self) -> Policy:

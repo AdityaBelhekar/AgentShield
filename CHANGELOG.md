@@ -13,6 +13,12 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   every `tools/call`. Denied and `ask` calls get a tool error and never reach the server;
   other messages pass through unchanged. Malformed lines, duplicate JSON keys and batches
   containing `tools/call` are refused rather than forwarded.
+- `agentshield gateway --lock FILE`: pins a hash of each tool's name, title, description,
+  input schema and annotations on first sight; calls to a tool whose definition changes
+  are denied.
+- `mcp.allowed_servers` policy key: the exact server commands the gateway may start.
+- `agentshield draft-policy -- <server command>`: prints a starting policy with every tool
+  at its most restrictive labels and the server's own descriptions and hints as comments.
 
 ---
 
