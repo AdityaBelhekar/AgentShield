@@ -18,6 +18,7 @@ HEAVY_MODULES = {
     "langgraph",
     "openai",
     "cryptography",
+    "opentelemetry",
 }
 
 

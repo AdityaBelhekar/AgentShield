@@ -253,6 +253,17 @@ For signed checkpoints, construct `AuditLog("audit.jsonl", key=private_key)` and
 
 <br />
 
+## OpenTelemetry
+
+With the `[otel]` extra, every decision is an `agentshield.decision` span event carrying
+the verdict, rule, reason, session id and policy digest (never the arguments). It joins the
+current span when there is one, or starts an `execute_tool {name}` span with the GenAI
+`gen_ai.operation.name` and `gen_ai.tool.name` attributes. Errors in telemetry are
+swallowed. Use a `BatchSpanProcessor` so export stays off the agent's thread. Without the
+extra, nothing is imported and nothing is emitted.
+
+<br />
+
 ## Benchmark: AgentDojo banking
 
 Every tool call in [AgentDojo](https://github.com/ethz-spylab/agentdojo)'s `banking` suite
@@ -324,8 +335,8 @@ key. Those numbers will not match the scripted ones and should be reported separ
 
 - Python 3.11, 3.12 and 3.13.
 - Core dependencies: `pydantic` and `pyyaml`.
-- Extras: `[langchain]` for the middleware, `[audit]` for Ed25519 checkpoints, `[bench]` for
-  AgentDojo.
+- Extras: `[langchain]` for the middleware, `[audit]` for Ed25519 checkpoints, `[otel]` for
+  OpenTelemetry events, `[bench]` for AgentDojo. The MCP gateway needs no extra.
 - The 0.1.x API (`shield()`, detectors, adapters, red-team CLI) was removed in 0.2.0. See
   [CHANGELOG.md](CHANGELOG.md) and [AGENTSHIELD_V2_REPORT.md](AGENTSHIELD_V2_REPORT.md).
 

@@ -46,6 +46,7 @@ from agentshield.exceptions import PolicyViolationError
 from agentshield.session import Decision, Label, Session, ToolCall, Verdict
 from agentshield.shield import Shield
 from agentshield.spotlight import delimit
+from agentshield.telemetry import emit_decision
 
 INVALID_REQUEST = -32600
 PARSE_ERROR = -32700
@@ -155,10 +156,11 @@ class Gateway:
                 f"tool {name!r} changed its description since it was locked",
                 rule="mcp.tool_changed",
             )
+            digest = self.shield.policy.digest
             if self.shield.audit is not None:
-                self.shield.audit.write(
-                    call, decision, self.session, policy=self.shield.policy.digest
-                )
+                with suppress(Exception):  # already a deny; a failed write changes nothing
+                    self.shield.audit.write(call, decision, self.session, policy=digest)
+            emit_decision(call, decision, self.session, digest)
         else:
             decision = self.shield.engine.check(call, self.session)
         if decision.verdict is not Verdict.ALLOW:

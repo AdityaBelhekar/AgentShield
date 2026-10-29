@@ -2,7 +2,7 @@
 
 One stage per day, 19 stages, three releases. Design rationale and the findings referenced as C1–C12 are in [AGENTSHIELD_V2_REPORT.md](AGENTSHIELD_V2_REPORT.md).
 
-**Progress:** stages 0–14 done (2026-10-29). Next: stage 15.
+**Progress:** stages 0–15 done (2026-10-29). Next: stage 16.
 
 **Rules**
 
@@ -152,6 +152,7 @@ One stage per day, 19 stages, three releases. Design rationale and the findings 
 - **Build:** One span event per decision using the GenAI semantic conventions, behind an `[otel]` extra. Export is asynchronous; with the extra absent it is a no-op.
 - **Done when:** a test with an in-memory exporter sees the decision attributes, and a test with a failing exporter shows tool calls are unaffected.
 - **Fixes:** C7's "telemetry blocks the agent" class of problem.
+- **As built:** `agentshield/telemetry.py` imports `opentelemetry` lazily and only calls the API, so it is a no-op both without the extra and without a configured SDK. The event is added to the current recording span, or to a new `execute_tool {name}` span. Asynchronous export is the tracer provider's job (`BatchSpanProcessor`); AgentShield does not run its own queue. The tests cover an in-memory exporter, a span processor that raises, a slow exporter that raises, and the extra missing.
 
 ### Stage 16 — Flow-graph viewer
 

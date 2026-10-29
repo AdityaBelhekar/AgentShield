@@ -16,6 +16,7 @@ from agentshield.exceptions import AgentShieldError
 from agentshield.policy import Flow, Policy
 from agentshield.session import Decision, Label, Session, ToolCall, Verdict, current_session
 from agentshield.spotlight import contains_marker
+from agentshield.telemetry import emit_decision
 
 
 class EnforcementEngine:
@@ -41,11 +42,12 @@ class EnforcementEngine:
             try:
                 self.audit.write(call, decision, active, policy=self.policy.digest)
             except Exception as exc:  # noqa: BLE001 - no audit, no authorization
-                return Decision(
+                decision = Decision(
                     Verdict.DENY,
                     f"audit failure while recording {call.name!r}: {type(exc).__name__}: {exc}",
                     rule="audit-error",
                 )
+        emit_decision(call, decision, active, self.policy.digest)
         return decision
 
     def record(self, call: ToolCall, result: object = None, session: Session | None = None) -> None:

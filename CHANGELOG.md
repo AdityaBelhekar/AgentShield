@@ -19,6 +19,8 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - `mcp.allowed_servers` policy key: the exact server commands the gateway may start.
 - `agentshield draft-policy -- <server command>`: prints a starting policy with every tool
   at its most restrictive labels and the server's own descriptions and hints as comments.
+- `[otel]` extra: one `agentshield.decision` span event per decision, using the GenAI
+  semantic conventions for tool spans. Telemetry errors never change a decision.
 
 ---
 
