@@ -2,7 +2,7 @@
 
 One stage per day, 19 stages, three releases. Design rationale and the findings referenced as C1–C12 are in [AGENTSHIELD_V2_REPORT.md](AGENTSHIELD_V2_REPORT.md).
 
-**Progress:** stages 0–12 done (2026-10-24). Next: stage 13.
+**Progress:** stages 0–13 done (2026-10-29). Next: stage 14.
 
 **Rules**
 
@@ -139,6 +139,7 @@ One stage per day, 19 stages, three releases. Design rationale and the findings 
 - **Build:** `agentshield gateway --policy p.yaml -- <server command>`: starts the downstream MCP server, proxies the protocol, and passes every `tools/call` through the engine. One session per client connection. Behind an `[mcp]` extra, built on the official MCP SDK.
 - **Done when:** against a small fixture MCP server, a denied tool call returns an error to the client and the downstream tool is never invoked; allowed calls round-trip unchanged.
 - **Risk:** largest unknown in the plan; may spill.
+- **As built:** `agentshield/gateway.py` is a newline-delimited JSON-RPC proxy, not an SDK server/client pair: it forwards every message except `tools/call` byte for byte, so it works with whatever protocol version the two ends negotiate (tested with the legacy initialize handshake and 2026-07-28). The official SDK (`mcp` 2.3) is used for the fixture server and the test client, not in the gateway, so there is no `[mcp]` extra: the gateway needs only the core. `ask` is answered as a denial (no human on the pipe). Lines that are not a single JSON object with unique keys, and batches containing `tools/call`, are refused instead of forwarded. Text results of `untrusted` tools are delimited; `structuredContent` is not.
 
 ### Stage 14 — MCP hardening
 

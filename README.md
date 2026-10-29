@@ -196,6 +196,22 @@ is blocked rather than silently allowed.
 
 <br />
 
+## MCP gateway
+
+Put the gateway between any MCP client and a stdio MCP server. Every `tools/call` is
+checked; everything else passes through byte for byte.
+
+```bash
+agentshield gateway --policy policy.yaml --audit audit.jsonl -- python my_server.py
+```
+
+In the client's server config, use that whole line as the command. A denied call comes
+back as a tool error the model can read, and the server never sees it. There is no human
+on a stdio pipe, so `ask` is answered as a denial. Results from `untrusted` tools are
+delimited like `shield.tool` results. One gateway process is one session.
+
+<br />
+
 ## Audit log
 
 Pass a path to write one JSON object per decision to an append-only JSONL file. Each

@@ -23,6 +23,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _keygen(args.out)
     if args.command == "bench":
         return _bench(args)
+    if args.command == "gateway":
+        return _gateway(args)
 
     parser.error("unknown command")
     return 2
@@ -78,6 +80,16 @@ def _parser() -> argparse.ArgumentParser:
     output.add_argument("--json", action="store_true", help="print the report as JSON")
     output.add_argument("--markdown", action="store_true", help="print a markdown table")
     bench.add_argument("--out", type=Path, help="write the JSON report to this path")
+
+    gateway = commands.add_parser(
+        "gateway",
+        help="proxy a stdio MCP server, checking every tools/call",
+        usage="agentshield gateway --policy POLICY [--audit FILE] -- <server command>",
+    )
+    gateway.add_argument("--policy", required=True, help="built-in policy name or YAML file")
+    gateway.add_argument("--audit", type=Path, help="append decisions to this JSONL file")
+    gateway.add_argument("--audit-key", type=Path, help="Ed25519 PEM key to sign the audit log")
+    gateway.add_argument("server", nargs=argparse.REMAINDER, help="the MCP server command")
     return parser
 
 
@@ -113,6 +125,34 @@ def _keygen(path: Path) -> int:
         path.chmod(0o600)
     print(f"wrote an Ed25519 private key to {path}")
     return 0
+
+
+def _gateway(args: argparse.Namespace) -> int:
+    from agentshield.audit import AuditLog, load_key
+    from agentshield.exceptions import AgentShieldError
+    from agentshield.gateway import run_gateway
+    from agentshield.shield import Shield
+
+    command = args.server[1:] if args.server[:1] == ["--"] else args.server
+    if not command:
+        print("agentshield gateway: give the server command after --", file=sys.stderr)
+        return 2
+    try:
+        audit = None
+        if args.audit is not None:
+            key = load_key(args.audit_key) if args.audit_key is not None else None
+            audit = AuditLog(args.audit, key=key)
+        shield = Shield.from_policy(args.policy, audit=audit)
+    except (AgentShieldError, OSError) as exc:
+        print(f"agentshield gateway: {exc}", file=sys.stderr)
+        return 2
+    try:
+        return run_gateway(shield, command)
+    except OSError as exc:
+        print(f"agentshield gateway: cannot start {command[0]!r}: {exc}", file=sys.stderr)
+        return 2
+    finally:
+        shield.close()
 
 
 def _bench(args: argparse.Namespace) -> int:

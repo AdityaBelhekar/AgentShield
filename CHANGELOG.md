@@ -6,6 +6,16 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ---
 
+## [Unreleased]
+
+### Added
+- `agentshield gateway --policy p.yaml -- <server command>`: a stdio MCP proxy that checks
+  every `tools/call`. Denied and `ask` calls get a tool error and never reach the server;
+  other messages pass through unchanged. Malformed lines, duplicate JSON keys and batches
+  containing `tools/call` are refused rather than forwarded.
+
+---
+
 ## [0.1.0] — 2026-04-05
 
 ### Added
