@@ -75,6 +75,12 @@ def _parser() -> argparse.ArgumentParser:
         help="injection task ids to run",
     )
     bench.add_argument(
+        "--classifier",
+        action="store_true",
+        help="measure the prompt-injection classifier instead (needs the [classifier] extra)",
+    )
+    bench.add_argument("--threshold", type=float, default=0.5, help="classifier threshold")
+    bench.add_argument(
         "--approval",
         choices=["deny", "allow"],
         default="deny",
@@ -212,7 +218,52 @@ def _server_command(words: list[str]) -> list[str]:
     return words[1:] if words[:1] == ["--"] else words
 
 
+def _bench_classifier(args: argparse.Namespace) -> int:
+    try:
+        from agentshield.classifier import evaluate, load_eval_set, onnx_scorer
+
+        report = evaluate(onnx_scorer(), load_eval_set(), threshold=args.threshold)
+    except (ImportError, OSError, ValueError) as exc:
+        print(f"agentshield bench: {exc}", file=sys.stderr)
+        return 2
+
+    if args.out is not None:
+        args.out.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    if args.json:
+        print(json.dumps(report, indent=2))
+        return 0
+
+    def pct(value: float | None) -> str:
+        return "-" if value is None else f"{value:.1%}"
+
+    print(f"model: {report['model']}  dataset: {report['dataset']}  threshold: {args.threshold}")
+    print(
+        f"{'subset':<10}{'rows':>6}{'injections':>12}{'detected':>10}{'benign':>8}{'false pos':>11}"
+    )
+    for name in ("overall", "english", "german"):
+        r = report[name]
+        print(
+            f"{name:<10}{r['rows']:>6}{r['injections']:>12}{pct(r['detection_rate']):>10}"
+            f"{r['benign']:>8}{pct(r['false_positive_rate']):>11}"
+        )
+    buried, latency = report["buried"], report["latency_ms"]
+    print(
+        f"detected injections buried 5,000 chars deep ({buried['documents']} docs): single pass "
+        f"{pct(buried['single_pass_detection_rate'])}, chunked "
+        f"{pct(buried['chunked_detection_rate'])}; clean docs flagged "
+        f"{buried['clean_documents_flagged']}"
+    )
+    print(
+        f"latency: short text median {latency['short_median']:.0f} ms, p95 "
+        f"{latency['short_p95']:.0f} ms; {buried['chars']:,}-char document median "
+        f"{latency['long_median']:.0f} ms, p95 {latency['long_p95']:.0f} ms"
+    )
+    return 0
+
+
 def _bench(args: argparse.Namespace) -> int:
+    if args.classifier:
+        return _bench_classifier(args)
     from agentshield.bench import format_markdown, format_table, run_benchmark
 
     try:

@@ -280,8 +280,34 @@ shield = Shield.from_policy("policy.yaml", detectors=[detector])
 ```
 
 `ChunkedClassifier` scores overlapping chunks, so an injection deep in a long document is
-not lost to the model's input window. No model ships yet: bring a scorer that takes a list
-of strings and returns a list of scores.
+not lost to the model's input window. Bring any scorer that takes a list of strings and
+returns a list of scores, or use the bundled one (`[classifier]` extra, no torch):
+
+```python
+from agentshield.classifier import prompt_injection_detector
+
+shield = Shield.from_policy(
+    "policy.yaml", detectors=[prompt_injection_detector()], detector_timeout=5.0
+)
+```
+
+It runs ProtectAI's `deberta-v3-base-prompt-injection-v2` (Apache-2.0, pinned revision)
+on ONNX Runtime. The first use downloads about 750 MB; loading needs about 1 GB of memory.
+Measured with `agentshield bench --classifier` on a laptop CPU, threshold 0.5:
+
+| Set | Injections detected | False positives |
+|---|---|---|
+| `deepset/prompt-injections` test, all 116 rows | 36.7% (22/60) | 0.0% (0/56) |
+| English rows (76) | 30.8% (12/39) | 0.0% (0/37) |
+| German rows (40, heuristic split) | 47.6% (10/21) | 0.0% (0/19) |
+| The 12 English injections it detects, buried 5,000 chars into an 8,000-char document | single pass 0%, chunked 58.3% (7/12) | 0/10 clean documents |
+
+Latency: short text median 23 ms (p95 61 ms); an 8,000-character result median 2.5 s
+(p95 3.4 s). Read this as a weak, precise second opinion: it rarely flags benign text and
+misses most of this dataset, whose labels also count role-play and off-topic requests as
+injections. The policy, not the classifier, is the boundary. The default 2-second limit
+fails closed, so raise `detector_timeout` if your tools return long documents. Known
+quirk: one sentence repeated dozens of times scores as an injection.
 
 <br />
 

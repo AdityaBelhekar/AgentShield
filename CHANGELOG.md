@@ -28,6 +28,10 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - Detectors: `Shield(..., detectors=[...])`. A detector can only upgrade `allow` to
   `ask` (arguments) or add `untrusted` taint (results); errors and timeouts count as a
   flag. `ChunkedClassifier` wraps any batch text scorer with overlapping chunks.
+- `[classifier]` extra: `agentshield.classifier.prompt_injection_detector()` runs ProtectAI's
+  `deberta-v3-base-prompt-injection-v2` (pinned) on ONNX Runtime without torch, and
+  `agentshield bench --classifier` measures it on `deepset/prompt-injections`.
+- `Shield(..., detector_timeout=...)`.
 - `[otel]` extra: one `agentshield.decision` span event per decision, using the GenAI
   semantic conventions for tool spans. Telemetry errors never change a decision.
 

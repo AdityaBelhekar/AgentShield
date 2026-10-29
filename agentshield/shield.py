@@ -42,10 +42,13 @@ class Shield:
         approval: ApprovalHandler | None = None,
         audit: AuditLog | str | Path | None = None,
         detectors: Sequence[Detector] = (),
+        detector_timeout: float = 2.0,
     ) -> None:
         self.policy = policy if policy is not None else load_policy("strict")
         self.audit = AuditLog(audit) if isinstance(audit, (str, Path)) else audit
-        self.engine = EnforcementEngine(self.policy, audit=self.audit, detectors=detectors)
+        self.engine = EnforcementEngine(
+            self.policy, audit=self.audit, detectors=detectors, detector_timeout=detector_timeout
+        )
         self.approval = approval
 
     @classmethod
@@ -56,9 +59,16 @@ class Shield:
         approval: ApprovalHandler | None = None,
         audit: AuditLog | str | Path | None = None,
         detectors: Sequence[Detector] = (),
+        detector_timeout: float = 2.0,
     ) -> Shield:
         """Build a shield from a built-in policy name, a YAML file, or a mapping."""
-        return cls(load_policy(source), approval=approval, audit=audit, detectors=detectors)
+        return cls(
+            load_policy(source),
+            approval=approval,
+            audit=audit,
+            detectors=detectors,
+            detector_timeout=detector_timeout,
+        )
 
     def close(self) -> None:
         """Flush a final signed checkpoint and close the audit log, if one is open."""

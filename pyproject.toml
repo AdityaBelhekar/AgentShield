@@ -43,6 +43,12 @@ langchain = [
 audit = [
   "cryptography>=42",
 ]
+classifier = [
+  "onnxruntime>=1.17",
+  "tokenizers>=0.15",
+  "huggingface-hub>=0.20",
+  "numpy>=1.24",
+]
 otel = [
   "opentelemetry-api>=1.20",
 ]
@@ -88,7 +94,7 @@ strict = true
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["agentdojo.*", "openai.*"]
+module = ["agentdojo.*", "openai.*", "onnxruntime.*", "tokenizers.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
