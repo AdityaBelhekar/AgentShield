@@ -8,6 +8,7 @@ Run from the repository root:
 
     python examples/exfil_demo.py
     python examples/exfil_demo.py --approve    # asks on the terminal first
+    python examples/exfil_demo.py --audit demo.jsonl && agentshield ui demo.jsonl
 """
 
 from __future__ import annotations
@@ -41,9 +42,16 @@ POLICY = {
 }
 
 
-def run(approval: ApprovalHandler | None = None) -> bool:
+def run(approval: ApprovalHandler | None = None, audit: str | None = None) -> bool:
     """Run the scenario. Returns whether the outbound email executed."""
-    shield = Shield.from_policy(POLICY, approval=approval)
+    shield = Shield.from_policy(POLICY, approval=approval, audit=audit)
+    try:
+        return _scenario(shield)
+    finally:
+        shield.close()
+
+
+def _scenario(shield: Shield) -> bool:
     sent_to: list[str] = []
 
     @shield.tool("web_fetch")
@@ -80,7 +88,8 @@ def run(approval: ApprovalHandler | None = None) -> bool:
 
 def main(argv: list[str] | None = None) -> int:
     args = sys.argv[1:] if argv is None else argv
-    executed = run(terminal_approval if "--approve" in args else None)
+    audit = args[args.index("--audit") + 1] if "--audit" in args else None
+    executed = run(terminal_approval if "--approve" in args else None, audit)
     if executed:
         print("\nThe email executed because an approval was granted.")
     else:

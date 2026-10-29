@@ -2,7 +2,7 @@
 
 One stage per day, 19 stages, three releases. Design rationale and the findings referenced as C1–C12 are in [AGENTSHIELD_V2_REPORT.md](AGENTSHIELD_V2_REPORT.md).
 
-**Progress:** stages 0–15 done (2026-10-29). Next: stage 16.
+**Progress:** stages 0–16 done (2026-10-29). Next: stage 17.
 
 **Rules**
 
@@ -158,6 +158,7 @@ One stage per day, 19 stages, three releases. Design rationale and the findings 
 
 - **Build:** `agentshield ui <audit.jsonl>` writes one self-contained HTML file showing a session as a graph: sources, the model, attempted tool calls, and blocked edges in red.
 - **Done when:** the stage 5 demo's audit file renders with the blocked `send_email` edge visible.
+- **As built:** audit records carry no labels, so `--policy` is optional and marks `untrusted`/`confidential` results as dashed data edges back to the model. The demo's blocked call was an `ask` with no approval, which the log could not distinguish from an approved one, so `Shield` (and the gateway) now write a second `approval` record with the outcome; the viewer folds it into the `ask` row. The page is inline SVG and CSS with no script, and every value from the log is HTML-escaped.
 
 ### Stage 17 — Optional detector plugin
 

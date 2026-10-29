@@ -165,9 +165,10 @@ class Shield:
         if decision.verdict is Verdict.DENY:
             raise PolicyViolationError(decision.reason)
         if decision.verdict is Verdict.ASK:
-            if self.approval is None:
-                raise ApprovalRequired(decision.reason)
-            if not self.approval(call, decision):
+            approved = self.approval is not None and self.approval(call, decision)
+            if not self.engine.resolve_approval(call, approved):
+                if self.approval is None:
+                    raise ApprovalRequired(decision.reason)
                 raise ApprovalRequired(f"approval denied: {decision.reason}")
         return call
 

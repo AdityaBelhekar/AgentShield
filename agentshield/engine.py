@@ -50,6 +50,26 @@ class EnforcementEngine:
         emit_decision(call, decision, active, self.policy.digest)
         return decision
 
+    def resolve_approval(
+        self, call: ToolCall, approved: bool, session: Session | None = None
+    ) -> bool:
+        """Audit the outcome of an ``ask``. Returns whether the call may run.
+
+        An approval that cannot be written to the audit log is not granted.
+        """
+        active = session if session is not None else current_session()
+        decision = Decision(
+            Verdict.ALLOW if approved else Verdict.DENY,
+            "approved" if approved else "approval not granted",
+            rule="approval",
+        )
+        if self.audit is not None:
+            try:
+                self.audit.write(call, decision, active, policy=self.policy.digest)
+            except Exception:  # noqa: BLE001 - no audit, no authorization
+                return False
+        return approved
+
     def record(self, call: ToolCall, result: object = None, session: Session | None = None) -> None:
         """Account for a completed tool call and taint the session with its labels."""
         active = session if session is not None else current_session()

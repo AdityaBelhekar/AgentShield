@@ -19,6 +19,12 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - `mcp.allowed_servers` policy key: the exact server commands the gateway may start.
 - `agentshield draft-policy -- <server command>`: prints a starting policy with every tool
   at its most restrictive labels and the server's own descriptions and hints as comments.
+- `agentshield ui audit.jsonl [--policy p.yaml]`: one self-contained HTML page per audit
+  file, each session drawn as model → tool calls, blocked edges in red, untrusted and
+  confidential results as dashed data edges. No script; all audit content is escaped.
+- The outcome of every `ask` is now audited as a record with rule `approval`. An approval
+  that cannot be written to the audit log is not granted.
+- `examples/exfil_demo.py --audit FILE`.
 - `[otel]` extra: one `agentshield.decision` span event per decision, using the GenAI
   semantic conventions for tool spans. Telemetry errors never change a decision.
 

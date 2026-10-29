@@ -27,6 +27,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _gateway(args)
     if args.command == "draft-policy":
         return _draft_policy(args)
+    if args.command == "ui":
+        return _ui(args)
 
     parser.error("unknown command")
     return 2
@@ -100,6 +102,11 @@ def _parser() -> argparse.ArgumentParser:
         usage="agentshield draft-policy -- <server command>",
     )
     draft.add_argument("server", nargs=argparse.REMAINDER, help="the MCP server command")
+
+    ui = commands.add_parser("ui", help="render an audit log as an HTML flow graph")
+    ui.add_argument("file", type=Path, help="path to the audit JSONL file")
+    ui.add_argument("--policy", help="policy whose labels mark the data sources")
+    ui.add_argument("--out", type=Path, help="HTML path (default: next to the audit file)")
     return parser
 
 
@@ -181,6 +188,23 @@ def _draft_policy(args: argparse.Namespace) -> int:
         print(f"agentshield draft-policy: {exc}", file=sys.stderr)
         return 2
     print(draft_policy(tools, " ".join(command)), end="")
+    return 0
+
+
+def _ui(args: argparse.Namespace) -> int:
+    from agentshield.exceptions import AgentShieldError
+    from agentshield.policy import load_policy
+    from agentshield.ui import render_html
+
+    try:
+        policy = load_policy(args.policy) if args.policy else None
+        page = render_html(args.file, policy)
+    except (AgentShieldError, OSError, ValueError) as exc:
+        print(f"agentshield ui: {exc}", file=sys.stderr)
+        return 2
+    out = args.out or args.file.with_suffix(".html")
+    out.write_text(page, encoding="utf-8")
+    print(f"wrote {out}")
     return 0
 
 

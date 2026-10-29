@@ -164,6 +164,8 @@ class Gateway:
         else:
             decision = self.shield.engine.check(call, self.session)
         if decision.verdict is not Verdict.ALLOW:
+            if decision.verdict is Verdict.ASK:
+                self.shield.engine.resolve_approval(call, False, self.session)
             if "id" not in message:
                 return None, None  # a notification gets no reply
             prefix = "needs approval" if decision.verdict is Verdict.ASK else "denied"

@@ -251,6 +251,16 @@ agentshield audit keygen --out key.pem
 For signed checkpoints, construct `AuditLog("audit.jsonl", key=private_key)` and pass it as
 `audit=`. Verification needs only the public key in the file's header.
 
+See a session as a graph, with blocked calls in red:
+
+```bash
+python examples/exfil_demo.py --audit demo.jsonl
+agentshield ui demo.jsonl --policy policy.yaml   # writes demo.html; --policy marks sources
+```
+
+The page is one self-contained HTML file with no script. An `ask` resolved by your approval
+handler is written to the log as a second record with rule `approval`.
+
 <br />
 
 ## OpenTelemetry
