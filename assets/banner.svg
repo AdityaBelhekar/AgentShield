@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 360" width="1280" height="360" role="img" aria-label="AgentShield: a policy-enforcing reference monitor for AI agent tool calls">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1020"/>
+      <stop offset="1" stop-color="#141b2f"/>
+    </linearGradient>
+    <linearGradient id="mark" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7c9cff"/>
+      <stop offset="1" stop-color="#4f6fe0"/>
+    </linearGradient>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M32 0H0V32" fill="none" stroke="#ffffff" stroke-opacity="0.035"/>
+    </pattern>
+  </defs>
+  <rect width="1280" height="360" rx="24" fill="url(#bg)"/>
+  <rect width="1280" height="360" rx="24" fill="url(#grid)"/>
+
+  <!-- shield mark -->
+  <g transform="translate(150 92)">
+    <path d="M88 0 L172 30 V96 C172 150 136 190 88 210 C40 190 4 150 4 96 V30 Z" fill="url(#mark)"/>
+    <path d="M88 22 L152 45 V96 C152 139 125 171 88 188 C51 171 24 139 24 96 V45 Z" fill="#0b1020" fill-opacity="0.35"/>
+    <path d="M52 104 L78 130 L128 76" fill="none" stroke="#ffffff" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <g font-family="Inter, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+    <text x="380" y="168" fill="#f2f4fa" font-size="76" font-weight="700" letter-spacing="-1.5">AgentShield</text>
+    <text x="382" y="216" fill="#aab3c9" font-size="27">A policy-enforcing reference monitor for AI agent tool calls</text>
+  </g>
+
+  <g font-family="'JetBrains Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace" font-size="19">
+    <rect x="382" y="250" width="96" height="38" rx="19" fill="#1f7a4d" fill-opacity="0.25" stroke="#3ccf8e" stroke-opacity="0.6"/>
+    <text x="430" y="275" fill="#7fe3b2" text-anchor="middle">allow</text>
+    <rect x="490" y="250" width="86" height="38" rx="19" fill="#b26b00" fill-opacity="0.25" stroke="#f0a640" stroke-opacity="0.6"/>
+    <text x="533" y="275" fill="#ffc979" text-anchor="middle">ask</text>
+    <rect x="588" y="250" width="92" height="38" rx="19" fill="#c62828" fill-opacity="0.25" stroke="#ff6b6b" stroke-opacity="0.6"/>
+    <text x="634" y="275" fill="#ff9d9d" text-anchor="middle">deny</text>
+    <text x="700" y="275" fill="#7d879e">decided before every tool call, fail-closed</text>
+  </g>
+</svg>
