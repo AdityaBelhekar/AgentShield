@@ -1,62 +1,40 @@
-# Contributing
+# Contributing to AgentShield
 
-## Dev Environment Setup
+## Setup
 
 ```bash
 git clone https://github.com/AdityaBelhekar/AgentShield
 cd AgentShield
+python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
-cp .env.example .env
 ```
 
-## Code Rules (13)
+## Checks
 
-1. Target Python 3.11+ for all SDK changes.
-2. Keep public import ergonomics stable (`from agentshield import shield`).
-3. Preserve strict type safety (`mypy` strict is enabled for `agentshield/`).
-4. Enforce formatting with Black (`line-length = 88`).
-5. Enforce linting with Ruff before opening a PR.
-6. Add docstrings for all new public classes/functions (Google style).
-7. Do not bypass policy/detection evidence fields when raising security exceptions.
-8. Keep adapter registry import order deterministic (LangChain -> LlamaIndex -> AutoGen -> Raw API).
-9. Update `CHANGELOG.md` for user-visible behavior changes.
-10. Use branch naming conventions: `feat/*`, `fix/*`, `chore/*`, `docs/*`.
-11. Use commit format: `feat(phase-Nx): description - summary`.
-12. Keep all tests under `/scratch/tests/` only and never commit scratch artifacts.
-13. Never commit secrets or live credentials; use `.env.example` placeholders.
-
-## Commit Format
-
-Required style:
-
-```text
-feat(phase-Nx): description - summary
-```
-
-Example:
-
-```text
-feat(phase-12A): full MkDocs docs site - material theme and API reference
-```
-
-## Test Rule
-
-- Test files must live in `/scratch/tests/`.
-- Scratch test artifacts are local-only and should not be committed.
-
-## Quality Commands
+CI runs these on every push. Run them before opening a PR:
 
 ```bash
 ruff check .
-black --check .
-mypy agentshield/
+ruff format --check .
+mypy agentshield
+pytest
 ```
 
-## PR Checklist
+## Rules
 
-- [ ] `ruff check .` passes with zero errors.
-- [ ] `black --check .` passes with zero formatting drift.
-- [ ] `mypy agentshield/` passes in strict mode.
-- [ ] New/changed behavior is covered by tests under `/scratch/tests/`.
-- [ ] `CHANGELOG.md` updated for user-facing changes.
-- [ ] New public APIs include docstrings and docs updates.
+- Tests live in `tests/` and are committed. Every behaviour change comes with a test that fails without it.
+- Core dependencies are `pydantic` and `pyyaml` only. Anything else goes in an extra; `tests/test_package.py` enforces this.
+- Enforcement fails closed: if the policy engine cannot decide, the answer is deny.
+- Nothing on the tool-call path does network I/O or blocks on telemetry.
+- Full type hints; `mypy --strict` must pass.
+- Update `CHANGELOG.md` under `[Unreleased]`.
+
+## Commit format
+
+- `feat(scope): …` — new behaviour
+- `fix(scope): …` — what was broken and how it is fixed
+- `docs(scope): …`, `test(scope): …`, `refactor(scope): …`, `ci: …`, `build: …`
+
+## Security issues
+
+Do not open a public issue. See [SECURITY.md](https://github.com/AdityaBelhekar/AgentShield/blob/main/SECURITY.md).

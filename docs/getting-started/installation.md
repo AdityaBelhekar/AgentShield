@@ -1,47 +1,39 @@
 # Installation
 
-## Requirements
-
-- Python 3.11+
-- `pip` 23+
-- Redis (required for pub/sub event streaming and the live dashboard)
-
-## Install AgentShield
+Python 3.11, 3.12 or 3.13.
 
 ```bash
 pip install agentshield-x
 ```
 
-## Optional Extras
+The core depends on `pydantic` and `pyyaml` only. Everything else is an extra:
+
+| Extra | Adds | Needed for |
+|---|---|---|
+| `[langchain]` | `langchain`, `langgraph` | [`shield.langchain()`](../guide/langchain.md) |
+| `[audit]` | `cryptography` | Ed25519-signed [audit checkpoints](../guide/audit-log.md) |
+| `[otel]` | `opentelemetry-api` | [OpenTelemetry events](../guide/opentelemetry.md) |
+| `[classifier]` | `onnxruntime`, `tokenizers`, `huggingface-hub`, `numpy` | The bundled [prompt-injection classifier](../guide/detectors.md) |
+| `[bench]` | `agentdojo` | [`agentshield bench`](../benchmark.md) |
 
 ```bash
-pip install "agentshield-x[redis]"
-pip install "agentshield-x[otel]"
-pip install "agentshield-x[all]"
+pip install "agentshield-x[langchain,audit]"
 ```
 
-If you are using the current public build where OpenTelemetry extras are published under `observability`, use:
+The [MCP gateway](../guide/mcp-gateway.md), the [flow-graph viewer](../guide/audit-log.md#flow-graph)
+and audit verification need no extra.
+
+## From a checkout
 
 ```bash
-pip install "agentshield-x[observability]"
+git clone https://github.com/AdityaBelhekar/AgentShield
+cd AgentShield
+pip install -e ".[dev]"
+python examples/exfil_demo.py
 ```
 
-## Redis Setup
+## Upgrading from 0.1.x
 
-AgentShield can run without Redis for local-only runtime behavior, but Redis is required for:
-
-- real-time event pub/sub,
-- backend live feed fanout, and
-- frontend dashboard streaming.
-
-Run Redis locally:
-
-```bash
-docker run --name agentshield-redis -p 6379:6379 -d redis:7-alpine
-```
-
-## Verify Installation
-
-```bash
-python -c "import agentshield; print(agentshield.__version__)"
-```
+The 0.1.x API (`shield()`, the detectors, adapters, dashboard and red-team CLI) was removed
+in 0.2.0 and has no compatibility layer. See the
+[changelog](https://github.com/AdityaBelhekar/AgentShield/blob/main/CHANGELOG.md).

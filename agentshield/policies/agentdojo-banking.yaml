@@ -1,0 +1,56 @@
+# Policy for AgentDojo's banking suite (v1.2.2), the smallest suite: 11 tools.
+#
+# Every tool is declared, so the unlabelled default never applies. Reads are what the
+# session has seen; sinks are what changes state or moves money out. The flows implement
+# the guarantee in AGENTSHIELD_V2_REPORT.md: once a session has both untrusted and
+# confidential data, an external sink needs approval.
+#
+# `get_most_recent_transactions` and `get_user_info` are also `untrusted`: in AgentDojo
+# their content is one of the injection vectors, so the data they return can carry
+# attacker-controlled text.
+version: 2
+name: agentdojo-banking
+
+tools:
+  # Reads.
+  get_balance: { labels: [confidential] }
+  get_iban: { labels: [confidential] }
+  get_most_recent_transactions: { labels: [confidential, untrusted] }
+  get_scheduled_transactions: { labels: [confidential] }
+  get_user_info: { labels: [confidential, untrusted] }
+  read_file:
+    labels: [untrusted]
+    args:
+      file_path:
+        deny_glob: ["**/.env", "**/.ssh/**", "**/id_rsa", "**/id_ed25519"]
+
+  # Sinks.
+  send_money: { labels: [external] }
+  schedule_transaction: { labels: [external] }
+  update_scheduled_transaction: { labels: [external] }
+  update_password: { labels: [external] }
+  update_user_info: { labels: [external] }
+
+flows:
+  - name: lethal-trifecta
+    when: { session_has: [untrusted, confidential], tool_has: [external] }
+    then: ask
+
+  # A credential change should never follow untrusted content without a human, even when
+  # the session has not touched confidential data yet.
+  - name: credential-change-after-untrusted
+    when: { session_has: [untrusted], tool: update_password }
+    then: ask
+
+  # Untrusted content must not steer a sink on its own. The first full-suite run let
+  # user_task_0 and user_task_13 read an injected bill/address file and then call
+  # send_money/update_user_info; this closes that gap. It also asks on the legitimate
+  # versions of those tasks, which is the price of not distinguishing data from
+  # instructions inside a tool result.
+  - name: untrusted-to-external
+    when: { session_has: [untrusted], tool_has: [external] }
+    then: ask
+
+limits:
+  max_tool_calls: 50
+  max_identical_calls: 5

@@ -1,80 +1,40 @@
 # Contributing to AgentShield
 
-## Dev Environment Setup
+## Setup
 
 ```bash
 git clone https://github.com/AdityaBelhekar/AgentShield
 cd AgentShield
 python -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev,redis,otel]"
+pip install -e ".[dev]"
 ```
 
-Optional Redis for integration and event-stream validation:
+## Checks
+
+CI runs these on every push. Run them before opening a PR:
 
 ```bash
-docker run -p 6379:6379 redis:7
+ruff check .
+ruff format --check .
+mypy agentshield
+pytest
 ```
 
-## Code Rules — Non-Negotiable
+## Rules
 
-□ Full type hints on all functions and methods  
-□ Google-style docstrings on all classes and public methods  
-□ Loguru only — never print() or logging module  
-□ Custom exceptions only — never raise Exception(...)  
-□ No hardcoded values — all from AgentShieldConfig  
-□ Zero TODO comments in committed code  
-□ ruff check: zero errors  
-□ black --check: zero errors  
-□ mypy --strict: zero errors  
-□ Tests in /scratch/tests/ only — never committed, always gitignored  
-□ One clean commit per phase/feature  
-□ emit() must never raise to the caller  
-□ Canary token values never stored in events or logs
+- Tests live in `tests/` and are committed. Every behaviour change comes with a test that fails without it.
+- Core dependencies are `pydantic` and `pyyaml` only. Anything else goes in an extra; `tests/test_package.py` enforces this.
+- Enforcement fails closed: if the policy engine cannot decide, the answer is deny.
+- Nothing on the tool-call path does network I/O or blocks on telemetry.
+- Full type hints; `mypy --strict` must pass.
+- Update `CHANGELOG.md` under `[Unreleased]`.
 
-## Running Checks Locally
+## Commit format
 
-```bash
-ruff check agentshield/
-black --check agentshield/
-mypy agentshield/ --strict
-```
+- `feat(scope): …` — new behaviour
+- `fix(scope): …` — what was broken and how it is fixed
+- `docs(scope): …`, `test(scope): …`, `refactor(scope): …`, `ci: …`, `build: …`
 
-All three must pass before opening a PR.
+## Security issues
 
-## Commit Format
-
-Use one of the following commit styles:
-
-- feat(scope): short description — longer summary if needed
-- fix(scope): what was broken and how it's fixed
-- docs(scope): what was documented
-- refactor(scope): what changed and why
-
-Examples:
-
-- feat(phase-3B): add PromptInjectionDetector — 3-layer pattern+semantic+canary
-- fix(detection): prevent emit() from propagating RedisConnectionError
-- docs(readme): add threat coverage table and badge row
-
-## Submitting a PR
-
-Checklist before opening:
-
-□ ruff, black, mypy all pass  
-□ No /scratch/tests/ files staged  
-□ CHANGELOG.md updated under [Unreleased]  
-□ Commit message follows format above  
-□ No auto-push — PR requires review
-
-## Reporting Issues
-
-Use GitHub Issues.
-For security vulnerabilities: email directly, do not open a public issue.
-
-## What AgentShield Will Never Do
-
-- Modify agent behavior (only observe and block)
-- Store raw prompt content (always hashed)
-- Store canary token values
-- Silently swallow exceptions from user code
-- Require internet connectivity to function
+Do not open a public issue. See [SECURITY.md](SECURITY.md).

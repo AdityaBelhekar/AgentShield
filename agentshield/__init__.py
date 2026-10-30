@@ -1,35 +1,43 @@
-from agentshield.runtime import shield, WrappedAgent, AgentShieldRuntime
-from agentshield.adapters.registry import AdapterRegistry
+"""AgentShield: a policy-enforcing reference monitor for AI agent tool calls."""
+
+from agentshield.approvals import ApprovalHandler, terminal_approval
+from agentshield.audit import AuditLog
 from agentshield.exceptions import (
     AgentShieldError,
+    ApprovalRequired,
+    AuditError,
+    CanaryLeakError,
+    PolicyError,
     PolicyViolationError,
-    PromptInjectionError,
-    GoalDriftError,
-    ToolCallBlockedError,
-    MemoryPoisonError,
-    BehavioralAnomalyError,
-    InterAgentInjectionError,
-    ConfigurationError,
 )
-from agentshield.policy.models import BUILTIN_POLICIES
-from agentshield.config import AgentShieldConfig
+from agentshield.session import (
+    Decision,
+    Label,
+    Session,
+    ToolCall,
+    Verdict,
+    current_session,
+)
+from agentshield.shield import Shield
 
-__version__ = "0.1.0"
+__version__ = "0.3.0"
+
 __all__ = [
-    "shield",
-    "WrappedAgent",
-    "AgentShieldRuntime",
-    "AdapterRegistry",
     "AgentShieldError",
+    "ApprovalHandler",
+    "ApprovalRequired",
+    "AuditError",
+    "AuditLog",
+    "CanaryLeakError",
+    "Decision",
+    "Label",
+    "PolicyError",
     "PolicyViolationError",
-    "PromptInjectionError",
-    "GoalDriftError",
-    "ToolCallBlockedError",
-    "MemoryPoisonError",
-    "BehavioralAnomalyError",
-    "InterAgentInjectionError",
-    "ConfigurationError",
-    "BUILTIN_POLICIES",
-    "AgentShieldConfig",
+    "Session",
+    "Shield",
+    "ToolCall",
+    "Verdict",
     "__version__",
+    "current_session",
+    "terminal_approval",
 ]

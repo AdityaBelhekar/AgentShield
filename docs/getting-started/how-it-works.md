@@ -1,53 +1,54 @@
-# How It Works
+# How it decides
 
-## Detection Pipeline
+AgentShield is a reference monitor: one deterministic engine that every checked tool call
+passes through. It has three pieces of state.
 
-```mermaid
-flowchart LR
-  A[Event] --> B[Canary]
-  B --> C[DNA]
-  C --> D[Provenance]
-  D --> E[Detectors]
-  E --> F[Correlation]
-  F --> G[Policy]
-  G --> H[Action]
-```
+- **The policy**: immutable once loaded. It labels each tool and declares forbidden flows.
+- **The session**: one agent run. It holds the run's *taint* (which labels it has
+  touched) and its call counters. It lives in a `ContextVar`, so concurrent runs in
+  threads or asyncio tasks never see each other's taint.
+- **The labels**: `untrusted` (the result may contain attacker-controlled text),
+  `confidential` (the result must not leave), `external` (the tool sends data out).
 
-## Event
+## Before a call: `check`
 
-Interceptors emit structured runtime events for LLM prompts/responses, tool calls, memory operations, and session lifecycle checkpoints. This event stream is the canonical substrate for all downstream analysis and auditing.
+Evaluated on every call, in this order:
 
-## Canary
+1. **Deny-list.** A tool declared `deny: true` never runs.
+2. **Labels.** An undeclared tool gets `unlabelled_tools` (default `deny`).
+3. **Arguments.** Path deny-globs, URL domain allow-lists, regex denies; credential-shaped
+   values in an `external` tool's arguments; the session's canary marker anywhere.
+4. **Flows.** Session taint × the tool's labels, for example
+   `session_has: [untrusted, confidential]` with `tool_has: [external]`.
+5. **Limits.** Total calls and identical calls per session.
+6. **Detectors** (optional). Only on a call that would be allowed: a flag makes it `ask`.
 
-Canary scanning checks LLM responses and tool outputs for session-bound secret tokens. If a token is echoed, AgentShield treats that as active manipulation with near-zero false positives and immediately raises a BLOCK outcome.
+A `deny` flow or a limit always wins over an `ask` flow, so more taint can only make a
+decision stricter. If the engine cannot decide (an internal error, a failed audit write),
+the answer is `deny`.
 
-## DNA
+The verdict is `allow`, `deny`, or `ask`. `ask` goes to your approval handler; without one
+it raises `ApprovalRequired`. An approval covers one call and is written to the audit log.
 
-The DNA subsystem continuously observes per-session behavior and tracks session features for baseline learning and anomaly scoring. Session-end anomaly evaluation compares current behavior against clean historical baselines.
+## After a call: `record`
 
-## Provenance
+The tool's labels are added to the session's taint, plus `confidential` if an argument
+matched a `sensitive_glob`, plus `untrusted` if a detector flagged the result. Taint is only
+ever added within a session. `record` is the only place it grows.
 
-Provenance tagging classifies content trust level (`TRUSTED`, `INTERNAL`, `EXTERNAL`, `UNTRUSTED`) before detector correlation. Trust labels support stricter handling for suspicious source chains and inter-agent flows.
+## Results from untrusted tools
 
-## Detectors
+String results from `untrusted` tools are wrapped in delimiters with a random nonce, so the
+model is told where data starts and ends and fetched content cannot close the block early.
+This makes injected text easier to ignore. It is not a boundary.
 
-Specialized detectors evaluate threat families: prompt injection, goal drift, tool-chain escalation, memory poisoning, and inter-agent injection. Each detector emits structured evidence and a recommended action.
+## The canary
 
-## Correlation
+`shield.system_prompt(text)` appends a random per-session marker to your system prompt.
+The marker has no reason to appear anywhere else: a tool call carrying it is denied, and
+`shield.check_output(answer)` raises `CanaryLeakError` if the final answer contains it.
 
-The correlation stage fuses all detector outputs for an event and applies escalation rules to reduce one-off false positives. It also enforces canary-triggered immediate block semantics.
+## Monitor mode
 
-## Policy
-
-The policy evaluator applies built-in or custom YAML rules against event context and detector findings. Policy decisions can suppress, log, flag, alert, or block regardless of individual detector action bands.
-
-## Action
-
-Final outcomes include telemetry emission, alert routing, or hard-stop enforcement via `PolicyViolationError`. All outcomes are recorded in the audit chain for forensic replay.
-
-## Cross-Detector Correlation Logic
-
-- `1 detector` -> action is capped at `ALERT`.
-- `2 detectors` -> escalation applies (`FLAG -> ALERT`, `ALERT -> BLOCK`).
-- `3+ detectors` -> action is always `BLOCK`.
-- `canary_triggered=True` -> immediate `BLOCK` always.
+`mode: monitor` runs the same evaluation and records what it would have done, but allows
+the call. Use it to roll out a policy, then switch to `enforce`.

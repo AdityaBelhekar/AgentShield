@@ -60,9 +60,9 @@ jobs:
             ## AgentShield ${{ github.ref_name }}
 
             Install via pip:
-```bash
+            ```bash
             pip install agentshield-x==${{ steps.version.outputs.value }}
-```
+            ```
 
             Full changelog: [CHANGELOG.md](CHANGELOG.md)
             Docs: https://AdityaBelhekar.github.io/AgentShield
