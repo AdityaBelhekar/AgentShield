@@ -181,6 +181,17 @@ def test_nested_credential_is_found() -> None:
     assert "GitHub token" in reason
 
 
+def test_credential_in_bytes_or_an_object_is_found() -> None:
+    # Regression: only str, mappings and sequences were scanned, so bytes slipped through.
+    class Note:
+        def __str__(self) -> str:
+            return "key AKIAIOSFODNN7EXAMPLE"
+
+    for body in (b"key AKIAIOSFODNN7EXAMPLE", bytearray(b"AKIAIOSFODNN7EXAMPLE"), Note()):
+        verdict, reason, _ = check("send_email", to="x@example.com", body=body)
+        assert verdict is Verdict.DENY and "AWS access key" in reason
+
+
 def test_benign_outbound_argument_passes() -> None:
     assert check("send_email", to="john@example.com", body="The Q3 report is attached.")[0] is (
         Verdict.ALLOW

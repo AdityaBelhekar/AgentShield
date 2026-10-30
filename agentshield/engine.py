@@ -1,8 +1,10 @@
 """The deterministic enforcement engine every tool call must pass through.
 
 ``check`` is evaluated on every call, in this order: deny-list, unlabelled default,
-flow rules against the session's taint, then limits. ``record`` is called after a tool
-returns and is the only place that grows the session's taint.
+flow rules against the session's taint, then limits. A call is counted against the limits
+the moment it is allowed (or approved), under a lock, so parallel calls cannot all pass
+the same limit. ``record`` is called after a tool returns and is the only place that grows
+the session's taint.
 
 Optional detectors (``agentshield.detectors``) run after the policy, and only on a call it
 allows: a flag turns ``allow`` into ``ask``. On ``record`` a flagged result adds
@@ -14,6 +16,7 @@ same evaluation runs and the decision is reported, but the returned verdict is `
 
 from __future__ import annotations
 
+import threading
 from collections.abc import Sequence
 
 from agentshield.arguments import argument_violation, sensitive_argument_touched
@@ -41,6 +44,7 @@ class EnforcementEngine:
         self.audit = audit
         self.detectors = tuple(detectors)
         self.detector_timeout = detector_timeout
+        self._counting = threading.Lock()
 
     def check(self, call: ToolCall, session: Session | None = None) -> Decision:
         """Decide whether ``call`` may run. Never raises; an internal error is a deny."""
@@ -60,6 +64,8 @@ class EnforcementEngine:
                             rule=f"detector.{flagged.split(' ')[0]}",
                         )
                     )
+            if decision.verdict is Verdict.ALLOW and active is not None:
+                decision = self._count(call, active) or decision
         except Exception as exc:  # noqa: BLE001 - enforcement must fail closed
             decision = Decision(
                 Verdict.DENY,
@@ -92,6 +98,10 @@ class EnforcementEngine:
             "approved" if approved else "approval not granted",
             rule="approval",
         )
+        if approved and active is not None:
+            # Parallel calls may have used up the limit while this one waited for a human.
+            decision = self._count(call, active) or decision
+            approved = decision.verdict is Verdict.ALLOW
         if self.audit is not None:
             try:
                 self.audit.write(call, decision, active, policy=self.policy.digest)
@@ -104,8 +114,6 @@ class EnforcementEngine:
         active = session if session is not None else current_session()
         if active is None:
             raise AgentShieldError(f"cannot record {call.name!r}: no active session")
-        active.tool_calls += 1
-        active.identical_calls[call.name] += 1
         rule = self.policy.tools.get(call.name)
         if rule is not None:
             active.taint.update(rule.labels)
@@ -178,31 +186,44 @@ class EnforcementEngine:
                     return self._monitor(decision)
                 asked = asked or decision
 
+        over_limit = self._limit_violation(call, session)
+        if over_limit is not None:
+            return self._monitor(over_limit)
+
+        if asked is not None:
+            return self._monitor(asked)
+        return Decision(Verdict.ALLOW, f"tool {call.name!r} is allowed by the policy")
+
+    def _limit_violation(self, call: ToolCall, session: Session) -> Decision | None:
         limits = self.policy.limits
         if limits.max_tool_calls is not None and session.tool_calls >= limits.max_tool_calls:
-            return self._monitor(
-                Decision(
-                    Verdict.DENY,
-                    f"session has reached its {limits.max_tool_calls} tool-call limit",
-                    rule="limits.max_tool_calls",
-                )
+            return Decision(
+                Verdict.DENY,
+                f"session has reached its {limits.max_tool_calls} tool-call limit",
+                rule="limits.max_tool_calls",
             )
         if (
             limits.max_identical_calls is not None
             and session.identical_calls[call.name] >= limits.max_identical_calls
         ):
-            return self._monitor(
-                Decision(
-                    Verdict.DENY,
-                    f"tool {call.name!r} has been called {limits.max_identical_calls} times "
-                    "in this session",
-                    rule="limits.max_identical_calls",
-                )
+            return Decision(
+                Verdict.DENY,
+                f"tool {call.name!r} has been called {limits.max_identical_calls} times "
+                "in this session",
+                rule="limits.max_identical_calls",
             )
+        return None
 
-        if asked is not None:
-            return self._monitor(asked)
-        return Decision(Verdict.ALLOW, f"tool {call.name!r} is allowed by the policy")
+    def _count(self, call: ToolCall, session: Session) -> Decision | None:
+        """Count a call that is about to run; return a deny if a limit was reached first."""
+        # ponytail: one lock per engine; per-session locks if many sessions contend.
+        with self._counting:
+            over_limit = self._limit_violation(call, session)
+            if over_limit is not None and self.policy.mode != "monitor":
+                return over_limit
+            session.tool_calls += 1
+            session.identical_calls[call.name] += 1
+        return None
 
     def _monitor(self, decision: Decision) -> Decision:
         if self.policy.mode != "monitor" or decision.verdict is Verdict.ALLOW:

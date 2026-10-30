@@ -333,7 +333,9 @@ def _runtime_class(shield: Shield | None, recorder: Recorder) -> Any:
                     CallRecord(function, "deny", decision.rule, decision.reason, False)
                 )
                 return "", f"AgentShield denied: {decision.reason}"
-            if decision.verdict is Verdict.ASK and not _approved(shield, call, decision):
+            if decision.verdict is Verdict.ASK and not shield.engine.resolve_approval(
+                call, _approved(shield, call, decision), self.session
+            ):
                 recorder.calls.append(
                     CallRecord(
                         function,

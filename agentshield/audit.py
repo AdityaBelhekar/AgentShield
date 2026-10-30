@@ -17,7 +17,10 @@ header, so ``agentshield audit verify <file>`` works anywhere::
     ...
     audit.close()
 
-Honest limitation: the header carries the public key, so someone who can rewrite the whole
+Honest limitations. Records after the last checkpoint are chained but not yet signed, so
+they can be cut off the end without breaking verification; ``close()`` signs a final
+checkpoint, ``verify_audit`` reports the unsigned tail, and a smaller ``checkpoint_every``
+shortens it. The header carries the public key, so someone who can rewrite the whole
 file can replace both key and signatures. Anchor the header's public key somewhere outside
 the file if that threat matters; external anchoring is deliberately out of scope for V2.
 """
@@ -331,6 +334,8 @@ class AuditReport:
     checkpoints: int
     signed: bool
     errors: tuple[str, ...] = ()
+    unsigned_tail: int = 0
+    """In a signed log, records after the last checkpoint: these could be truncated."""
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -338,6 +343,7 @@ class AuditReport:
             "records": self.records,
             "checkpoints": self.checkpoints,
             "signed": self.signed,
+            "unsigned_tail": self.unsigned_tail,
             "errors": list(self.errors),
         }
 
@@ -377,6 +383,7 @@ def verify_audit(path: str | Path) -> AuditReport:
 
     expected_seq = 0
     previous = GENESIS
+    last_signed_seq = -1
 
     for line_no, line in enumerate(lines[1:], start=2):
         try:
@@ -427,6 +434,8 @@ def verify_audit(path: str | Path) -> AuditReport:
                 _verify(public_key, signature, checkpoint_message(seq, digest))
             except AuditError:
                 errors.append(f"line {line_no}: checkpoint signature does not verify")
+            else:
+                last_signed_seq = max(last_signed_seq, seq)
         else:
             errors.append(f"line {line_no}: unknown record type {kind!r}")
 
@@ -439,6 +448,7 @@ def verify_audit(path: str | Path) -> AuditReport:
         checkpoints=checkpoints,
         signed=signed,
         errors=tuple(errors),
+        unsigned_tail=sum(1 for seq in hashes if seq > last_signed_seq) if signed else 0,
     )
 
 

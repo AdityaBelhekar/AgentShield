@@ -381,8 +381,10 @@ key. Those numbers will not match the scripted ones and should be reported separ
 - **It is not a sandbox.** Tool code runs with your process's privileges. A malicious tool
   can read files, open sockets or edit the policy before the next call.
 - **The audit log is tamper-evident, not tamper-proof.** It catches deleted or edited
-  records, but someone who can rewrite the whole file and replace the header key can forge
-  a new chain. Anchor the public key outside the file when that threat matters.
+  records, but records after the last signed checkpoint can be cut off the end unnoticed
+  (`audit verify` reports how many), and someone who can rewrite the whole file and replace
+  the header key can forge a new chain. Anchor the public key outside the file when that
+  threat matters.
 - **The benchmark is one suite, scripted.** Banking is the smallest AgentDojo suite; no
   model is involved; other suites, attacks and real-model behaviour are not measured. Do not
   read the table as a leaderboard.

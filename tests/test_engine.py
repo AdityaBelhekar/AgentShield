@@ -204,14 +204,54 @@ def test_monitor_mode_reports_but_allows() -> None:
 # --- state -----------------------------------------------------------------------------
 
 
-def test_record_updates_taint_and_counters() -> None:
+def test_record_updates_taint_and_check_counts_allowed_calls() -> None:
     engine = make_engine()
     session = Session()
-    engine.record(ToolCall("read_file", {"path": "x"}), session=session)
-    engine.record(ToolCall("read_file", {"path": "y"}), session=session)
+    for path in ("x", "y"):
+        call = ToolCall("read_file", {"path": path})
+        assert engine.check(call, session).allowed
+        engine.record(call, session=session)
+    assert engine.check(ToolCall("bash", {}), session).verdict is Verdict.DENY
     assert session.taint == {Label.CONFIDENTIAL}
-    assert session.tool_calls == 2
+    assert session.tool_calls == 2  # counted when allowed; the denied call is not
     assert session.identical_calls["read_file"] == 2
+
+
+def test_parallel_calls_cannot_all_pass_the_same_limit() -> None:
+    # Regression: counting happened in record(), after the tool ran, so calls checked
+    # in parallel all saw the same count and all passed.
+    engine = make_engine(limits={"max_tool_calls": 3})
+    session = Session()
+    decisions = [engine.check(ToolCall("calc", {}), session) for _ in range(10)]
+    assert sum(d.allowed for d in decisions) == 3
+
+
+def test_threads_sharing_a_session_respect_the_limit() -> None:
+    import threading
+
+    engine = make_engine(limits={"max_tool_calls": 50, "max_identical_calls": 1000})
+    session = Session()
+    allowed: list[bool] = []
+
+    def worker() -> None:
+        for _ in range(20):
+            allowed.append(engine.check(ToolCall("calc", {}), session).allowed)
+
+    threads = [threading.Thread(target=worker) for _ in range(8)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert sum(allowed) == 50 and session.tool_calls == 50
+
+
+def test_an_approval_after_the_limit_was_used_up_is_not_granted() -> None:
+    engine = make_engine(limits={"max_tool_calls": 1})
+    session = Session(taint={Label.UNTRUSTED, Label.CONFIDENTIAL})
+    asked = engine.check(ToolCall("send_email", {}), session)
+    assert asked.verdict is Verdict.ASK
+    assert engine.check(ToolCall("calc", {}), session).allowed  # uses the one call
+    assert engine.resolve_approval(ToolCall("send_email", {}), True, session) is False
 
 
 def test_check_uses_the_current_session() -> None:

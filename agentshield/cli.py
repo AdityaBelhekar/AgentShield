@@ -125,6 +125,11 @@ def _verify(path: Path, *, as_json: bool) -> int:
     if report.valid:
         kind = "signed" if report.signed else "unsigned"
         print(f"valid: {report.records} records, {report.checkpoints} checkpoints ({kind})")
+        if report.unsigned_tail:
+            print(
+                f"note: the last {report.unsigned_tail} record(s) come after the last "
+                "signed checkpoint; removing them would not be detected"
+            )
         return 0
 
     print(f"invalid: {len(report.errors)} problem(s) in {path}", file=sys.stderr)

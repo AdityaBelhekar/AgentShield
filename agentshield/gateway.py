@@ -24,9 +24,11 @@ Hardening:
   start (the command words joined by single spaces). Anything else is refused.
 - With a lockfile (``--lock``), the hash of every tool's name, title, description, input
   schema and annotations is written the first time the tool is listed. If a later listing
-  shows a different hash, calls to that tool are denied: a description is part of the
-  prompt, and a server that rewrites one after review is changing what the model is told.
-  Delete the tool's entry from the lockfile to accept the new version.
+  shows a different hash, the tool is removed from the listing the client receives and
+  calls to it are denied: a description is part of the prompt, and a server that rewrites
+  one after review is changing what the model is told. Delete the tool's entry from the
+  lockfile to accept the new version. If the lockfile cannot be written, the listed tools
+  are hidden and denied the same way, with a message on stderr.
 """
 
 from __future__ import annotations
@@ -196,13 +198,15 @@ class Gateway:
             return line
         if not isinstance(message, dict) or "method" in message or "id" not in message:
             return line
+        response_id = message["id"]
+        if not isinstance(response_id, str | int) or isinstance(response_id, bool):
+            return line  # not an id the gateway issued tracking for
         with self._lock:
-            call = self._pending.pop(message["id"], None)
-            listing = message["id"] in self._listing
-            self._listing.discard(message["id"])
+            call = self._pending.pop(response_id, None)
+            listing = response_id in self._listing
+            self._listing.discard(response_id)
         if listing:
-            self._check_tools(message.get("result"))
-            return line
+            return self._check_tools(message, line)
         if call is None:
             return line
 
@@ -217,18 +221,35 @@ class Gateway:
                 block["text"] = delimit(str(block.get("text", "")), source=call.name)
         return _encode(message)
 
-    def _check_tools(self, result: object) -> None:
+    def _check_tools(self, message: dict[str, Any], line: bytes) -> bytes:
+        """Pin listed tools; drop changed ones so the model never reads their new text."""
+        result = message.get("result")
         if self.lock_path is None or not isinstance(result, dict):
-            return
-        tools = [t for t in result.get("tools") or [] if isinstance(t, dict) and "name" in t]
-        with self._lock:
-            lock = read_lock(self.lock_path)
-            pinned = lock["servers"].setdefault(self.server_key, {})
-            for tool in tools:
-                name, digest = str(tool["name"]), tool_digest(tool)
-                if pinned.setdefault(name, digest) != digest:
-                    self.changed_tools.add(name)
-            write_lock(self.lock_path, lock)
+            return line
+        listed = result.get("tools")
+        if not isinstance(listed, list):
+            return line
+        tools = [t for t in listed if isinstance(t, dict) and "name" in t]
+        try:
+            with self._lock:
+                lock = read_lock(self.lock_path)
+                pinned = lock["servers"].setdefault(self.server_key, {})
+                for tool in tools:
+                    name, digest = str(tool["name"]), tool_digest(tool)
+                    if pinned.setdefault(name, digest) != digest:
+                        self.changed_tools.add(name)
+                write_lock(self.lock_path, lock)
+        except (OSError, ValueError) as exc:
+            # Unpinned tools must not reach the model: hide this page and say why.
+            print(f"agentshield gateway: cannot update lockfile: {exc}", file=sys.stderr)
+            self.changed_tools.update(str(t["name"]) for t in tools)
+        kept = [
+            t for t in listed if not (isinstance(t, dict) and t.get("name") in self.changed_tools)
+        ]
+        if len(kept) == len(listed):
+            return line
+        result["tools"] = kept
+        return _encode(message)
 
     def _write(self, stdout: IO[bytes], data: bytes) -> None:
         with self._write_lock:

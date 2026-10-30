@@ -41,6 +41,23 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - `SECURITY.md` states what counts as a vulnerability and the supported versions.
 
 ### Fixed
+- MCP gateway: a tool whose locked definition changed is now removed from the `tools/list`
+  response, not only denied, so the model never reads the rewritten description.
+- MCP gateway: if the lockfile cannot be written, the listed tools are hidden and denied
+  with a message on stderr. Before, the gateway silently stopped answering.
+- Calls are counted against `limits` when they are allowed or approved, under a lock.
+  Before, counting happened after the tool ran, so parallel calls could all pass a limit.
+- The outbound secret scan now reads `bytes`, `bytearray` and other objects, not only
+  strings and containers.
+- Detectors run in daemon threads with one shared deadline: a hung detector no longer
+  keeps the process from exiting or blocks later calls. Async tools and the async
+  LangChain hook run checks off the event loop when detectors are configured.
+- The LangChain middleware delimits list-shaped (multi-part) content from untrusted tools.
+- `agentshield audit verify` reports records after the last signed checkpoint, which
+  could be truncated undetected; documented.
+- `mypy` in CI no longer fails on the classifier's optional imports.
+- An approval that is granted but cannot be counted or audited now says so, instead of
+  "approval denied".
 - An `ask` flow no longer pre-empts a `deny` flow listed after it or a limit. Before, extra
   taint could turn a call the limit would deny into an `ask`.
 

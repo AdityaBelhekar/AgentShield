@@ -94,7 +94,7 @@ strict = true
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["agentdojo.*", "openai.*", "onnxruntime.*", "tokenizers.*"]
+module = ["agentdojo.*", "openai.*", "onnxruntime.*", "tokenizers.*", "numpy.*", "huggingface_hub.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

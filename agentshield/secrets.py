@@ -33,6 +33,8 @@ def find_secret(value: object, _depth: int = _MAX_DEPTH) -> str | None:
     """Return a description of the first credential-shaped value, or ``None``."""
     if _depth <= 0:
         return None
+    if isinstance(value, bytes | bytearray):
+        value = bytes(value).decode("utf-8", "replace")
     if isinstance(value, str):
         for description, pattern in _PATTERNS:
             if pattern.search(value):
@@ -49,7 +51,11 @@ def find_secret(value: object, _depth: int = _MAX_DEPTH) -> str | None:
             found = find_secret(item, _depth - 1)
             if found is not None:
                 return found
-    return None
+        return None
+    if isinstance(value, (int, float, bool)) or value is None:
+        return None
+    # Any other object reaches the tool as itself; scan what it renders to.
+    return find_secret(str(value), _depth - 1)
 
 
 def redact(value: object, _depth: int = _MAX_DEPTH) -> object:

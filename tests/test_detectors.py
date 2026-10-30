@@ -204,3 +204,67 @@ def test_the_real_model_finds_an_injection_buried_in_a_long_document(
     detector = ChunkedClassifier(real_scorer, chunk_chars=CHUNK_CHARS, overlap=CHUNK_OVERLAP)
     assert detector.flags(document)
     assert not detector.flags(filler)
+
+
+def test_a_hung_detector_does_not_keep_the_process_alive() -> None:
+    # Regression: detectors ran on a ThreadPoolExecutor, whose workers Python joins at exit.
+    import subprocess
+    import sys
+
+    code = (
+        "import time\n"
+        "from agentshield import Shield\n"
+        "class Hang:\n"
+        "    name = 'hang'\n"
+        "    def flags(self, text):\n"
+        "        time.sleep(60)\n"
+        "        return False\n"
+        "s = Shield.from_policy({'version': 2, 'tools': {'t': {}}}, detectors=[Hang()],\n"
+        "                       detector_timeout=0.1)\n"
+        "t = s.tool('t', lambda x: x)\n"
+        "with s.session():\n"
+        "    try:\n"
+        "        t('a')\n"
+        "    except Exception as exc:\n"
+        "        print(type(exc).__name__)\n"
+    )
+    out = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, timeout=20, check=True
+    )
+    assert out.stdout.strip() == "ApprovalRequired"
+
+
+def test_detectors_do_not_block_the_event_loop() -> None:
+    # Regression: async tools ran detectors on the loop thread, freezing every other task.
+    import asyncio
+
+    class Slow:
+        name = "slow"
+
+        def flags(self, text: str) -> bool:
+            time.sleep(0.3)
+            return False
+
+    shield = Shield.from_policy({"version": 2, "tools": {"t": {}}}, detectors=[Slow()])
+
+    async def body(x: str) -> str:
+        return x
+
+    tool = shield.tool("t", body)
+
+    async def main() -> int:
+        ticks = 0
+
+        async def ticker() -> None:
+            nonlocal ticks
+            while True:
+                await asyncio.sleep(0.01)
+                ticks += 1
+
+        task = asyncio.create_task(ticker())
+        async with shield.session():
+            assert await tool("x") == "x"
+        task.cancel()
+        return ticks
+
+    assert asyncio.run(main()) > 20  # about 60 ticks fit in the two 0.3 s scans

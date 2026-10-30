@@ -37,9 +37,14 @@ agentshield audit verify audit.jsonl          # exit 0 if valid
 agentshield audit verify audit.jsonl --json
 ```
 
-Verification needs only the public key in the file's header. That is also the limit: someone
-who can rewrite the whole file can replace the key and re-sign a forged chain. Anchor the
-public key outside the file when that matters.
+Verification needs only the public key in the file's header. Two limits follow:
+
+- **The unsigned tail.** Records after the last checkpoint are chained but not signed, so
+  they can be cut off the end without breaking verification. `shield.close()` signs a final
+  checkpoint; after a crash, `audit verify` reports how many records are in the unsigned
+  tail. A smaller `checkpoint_every` keeps it short.
+- **The header key.** Someone who can rewrite the whole file can replace the key and
+  re-sign a forged chain. Anchor the public key outside the file when that matters.
 
 ## Flow graph
 

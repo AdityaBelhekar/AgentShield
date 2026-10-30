@@ -64,18 +64,18 @@ class ShieldMiddleware(AgentMiddleware[Any, Any, Any]):
         self, request: ToolCallRequest, handler: AsyncToolHandler
     ) -> ToolResult:
         call = _tool_call(request)
-        self.shield._authorize(call)
+        await self.shield._authorize_async(call)
         try:
             result = await handler(request)
         except BaseException:
             self.shield.engine.record(call)
             raise
-        self.shield.engine.record(call, _content(result))
+        await self.shield._record_async(call, _content(result))
         return self._spotlight(call, result)
 
     def _spotlight(self, call: ToolCall, result: ToolResult) -> ToolResult:
         if isinstance(result, ToolMessage):
-            content = self.shield._spotlight_result(call, result.content)
+            content = self.shield._spotlight_result(call, result.content, blocks=True)
             if content is not result.content:
                 return result.model_copy(update={"content": content})
         return result

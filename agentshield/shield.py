@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import inspect
 from collections.abc import Callable, Mapping, Sequence
 from functools import wraps
@@ -139,13 +140,15 @@ class Shield:
 
             @wraps(fn)
             async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
-                call = self._authorize(ToolCall(name, _bind_arguments(fn, args, kwargs)))
+                call = await self._authorize_async(
+                    ToolCall(name, _bind_arguments(fn, args, kwargs))
+                )
                 try:
                     result = await fn(*args, **kwargs)
                 except BaseException:
                     self.engine.record(call)
                     raise
-                self.engine.record(call, result)
+                await self._record_async(call, result)
                 return self._spotlight_result(call, result)
 
             return async_wrapper
@@ -163,14 +166,41 @@ class Shield:
 
         return wrapper
 
-    def _spotlight_result(self, call: ToolCall, result: Any) -> Any:
-        """Delimit a string result from an ``untrusted`` tool; leave other results alone."""
-        if not isinstance(result, str):
-            return result
+    def _spotlight_result(self, call: ToolCall, result: Any, *, blocks: bool = False) -> Any:
+        """Delimit text from an ``untrusted`` tool; leave other results alone.
+
+        A string is delimited. With ``blocks=True`` (model-bound content, such as a LangChain
+        ``ToolMessage``), so is each string or ``{"type": "text"}`` block in a list. A plain
+        Python tool's list result is returned as is, since the caller may use it as data.
+        """
         rule = self.policy.tools.get(call.name)
         if rule is None or Label.UNTRUSTED not in rule.labels:
             return result
-        return delimit(result, source=call.name)
+        if isinstance(result, str):
+            return delimit(result, source=call.name)
+        if blocks and isinstance(result, list):
+            return [self._spotlight_block(call, block) for block in result]
+        return result
+
+    def _spotlight_block(self, call: ToolCall, block: Any) -> Any:
+        if isinstance(block, str):
+            return delimit(block, source=call.name)
+        if isinstance(block, Mapping) and block.get("type") == "text":
+            return {**block, "text": delimit(str(block.get("text", "")), source=call.name)}
+        return block
+
+    async def _authorize_async(self, call: ToolCall) -> ToolCall:
+        """``_authorize`` without blocking the event loop while detectors run."""
+        if not self.engine.detectors:
+            return self._authorize(call)
+        # to_thread copies the context, so the current session goes with it.
+        return await asyncio.to_thread(self._authorize, call)
+
+    async def _record_async(self, call: ToolCall, result: Any) -> None:
+        if not self.engine.detectors:
+            self.engine.record(call, result)
+        else:
+            await asyncio.to_thread(self.engine.record, call, result)
 
     def _authorize(self, call: ToolCall) -> ToolCall:
         """Run the engine and any approval handler for one call, or raise."""
@@ -182,6 +212,10 @@ class Shield:
             if not self.engine.resolve_approval(call, approved):
                 if self.approval is None:
                     raise ApprovalRequired(decision.reason)
+                if approved:
+                    raise ApprovalRequired(
+                        f"approved, but the call could not be counted or audited: {decision.reason}"
+                    )
                 raise ApprovalRequired(f"approval denied: {decision.reason}")
         return call
 

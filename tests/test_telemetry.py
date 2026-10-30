@@ -40,14 +40,15 @@ class BrokenProcessor(SpanProcessor):
 MEMORY = InMemorySpanExporter()
 BROKEN = BrokenProcessor()
 PROVIDER = TracerProvider()
-PROVIDER.add_span_processor(SimpleSpanProcessor(MEMORY))
-PROVIDER.add_span_processor(BatchSpanProcessor(SlowFailingExporter(), schedule_delay_millis=1))
-trace.set_tracer_provider(PROVIDER)
 
 
 @pytest.fixture(autouse=True, scope="module")
-def _stop_exporting_after_this_module() -> Iterator[None]:
-    # The global provider cannot be unset; shut it down so later tests don't feed it.
+def _provider_for_this_module_only() -> Iterator[None]:
+    # Installed here, not at import, so collecting this file does not make every other
+    # test module export spans. The global provider cannot be unset, so it is shut down.
+    PROVIDER.add_span_processor(SimpleSpanProcessor(MEMORY))
+    PROVIDER.add_span_processor(BatchSpanProcessor(SlowFailingExporter(), schedule_delay_millis=1))
+    trace.set_tracer_provider(PROVIDER)
     yield
     PROVIDER.shutdown()
 

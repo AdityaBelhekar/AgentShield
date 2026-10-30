@@ -140,6 +140,25 @@ def test_deleting_the_tail_record_is_caught(tmp_path: Path) -> None:
     assert any("checkpoint does not match a record" in error for error in report.errors)
 
 
+def test_an_unsigned_tail_is_reported(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    # Records after the last checkpoint can be cut off undetected; verify must say so.
+    path = tmp_path / "audit.jsonl"
+    log = AuditLog(path, key=Ed25519PrivateKey.generate(), checkpoint_every=5)
+    write_records(log, 8)
+    assert log._fh is not None
+    log._fh.close()  # a crash: no final checkpoint
+
+    assert verify_audit(path).unsigned_tail == 3
+    assert main(["audit", "verify", str(path)]) == 0
+    assert "the last 3 record(s) come after the last signed checkpoint" in capsys.readouterr().out
+
+    closed = tmp_path / "closed.jsonl"
+    log = AuditLog(closed, key=Ed25519PrivateKey.generate(), checkpoint_every=5)
+    write_records(log, 8)
+    log.close()
+    assert verify_audit(closed).unsigned_tail == 0
+
+
 def test_verification_passes_after_50000_records(tmp_path: Path) -> None:
     path = tmp_path / "audit.jsonl"
     key = Ed25519PrivateKey.generate()
