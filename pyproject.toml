@@ -69,7 +69,7 @@ agentshield = "agentshield.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/AdityaBelhekar/AgentShield"
-Documentation = "https://AdityaBelhekar.github.io/AgentShield"
+Documentation = "https://github.com/AdityaBelhekar/AgentShield/tree/v0.3.0/docs"
 Repository = "https://github.com/AdityaBelhekar/AgentShield"
 "Bug Tracker" = "https://github.com/AdityaBelhekar/AgentShield/issues"
 Changelog = "https://github.com/AdityaBelhekar/AgentShield/blob/main/CHANGELOG.md"

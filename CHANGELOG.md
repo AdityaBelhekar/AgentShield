@@ -68,7 +68,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 0.2.0 is a ground-up rewrite. The detector stack, runtime wrapper and red-team CLI are gone;
 in their place is a deterministic reference monitor for tool calls, a policy manifest, an
 approval path and a tamper-evident audit log. Read the [README](README.md) for the guarantee
-and, more importantly, for [what it does not protect against](README.md#what-this-does-not-protect-against).
+and, more importantly, for [what it does not protect against](README.md#what-it-does-not-protect-against).
 
 ### Added
 

@@ -5,7 +5,7 @@ Five minutes to put the reference monitor around a tool-calling agent. This guid
 
 AgentShield is not a sandbox. It answers one question — may this tool call run? — from the
 labels in your policy and the taint of the current session. Read the
-[limitations](README.md#what-this-does-not-protect-against) before relying on it.
+[limitations](README.md#what-it-does-not-protect-against) before relying on it.
 
 ## 1. Install
 
@@ -187,7 +187,7 @@ agentshield bench --markdown
 
 This runs AgentDojo's banking suite through the engine in scripted mode (no model, no API
 key). `--model gpt-4o-2024-05-13` runs a real pipeline if a provider key is set. The current
-results, and what they do not prove, are in the [README](README.md#benchmark-agentdojo-banking).
+results, and what they do not prove, are in the [README](README.md#benchmark).
 
 ## Troubleshooting
 
